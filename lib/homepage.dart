@@ -27,7 +27,7 @@ class _HomePageState extends State<HomePage>
   bool _cameraReady = false;
   bool _developerMode = false;
   bool _leadModels = false;
-  bool _gpuDelegate = false;
+  final Set<String> _gpuTasks = {};
   bool _fpsLock = true;
   int _selectedTabIndex = 0;
   String _status =
@@ -199,6 +199,27 @@ class _HomePageState extends State<HomePage>
           ),
         ),
       ),
+    );
+  }
+
+  /// Developer option row; options are locked while a scan runs.
+  Widget _developerSwitch(
+    String label,
+    bool value,
+    ValueChanged<bool> onChanged,
+  ) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ),
+        Switch(value: value, onChanged: _isDetecting ? null : onChanged),
+      ],
     );
   }
 
@@ -404,31 +425,19 @@ class _HomePageState extends State<HomePage>
                     ],
                   ),
                 if (_developerMode)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'GPU delegate (experimental, applies on next scan)',
-                          style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                      Switch(
-                        value: _gpuDelegate,
-                        onChanged: _isDetecting
-                            ? null
-                            : (value) {
-                                setState(() => _gpuDelegate = value);
-                                unawaited(
-                                  _detectionService.setGpuTasks(
-                                    value ? {'face', 'pose', 'hands'} : {},
-                                  ),
-                                );
-                              },
-                      ),
-                    ],
-                  ),
+                  for (final task in const ['face', 'pose', 'hands'])
+                    _developerSwitch(
+                      '${task[0].toUpperCase()}${task.substring(1)} tracker on GPU (experimental; next scan)',
+                      _gpuTasks.contains(task),
+                      (value) {
+                        setState(
+                          () => value
+                              ? _gpuTasks.add(task)
+                              : _gpuTasks.remove(task),
+                        );
+                        unawaited(_detectionService.setGpuTasks(_gpuTasks));
+                      },
+                    ),
                 if (_developerMode)
                   Row(
                     children: [

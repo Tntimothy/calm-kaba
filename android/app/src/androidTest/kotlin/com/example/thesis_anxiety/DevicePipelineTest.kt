@@ -124,13 +124,27 @@ class DevicePipelineTest {
         fun pose(d: Delegate) = PoseLandmarker.createFromOptions(context,PoseLandmarker.PoseLandmarkerOptions.builder()
             .setBaseOptions(BaseOptions.builder().setModelAssetPath("tracking/pose_landmarker_lite.task").setDelegate(d).build())
             .setRunningMode(RunningMode.IMAGE).build())
+        fun hands(d: Delegate) = HandLandmarker.createFromOptions(context,HandLandmarker.HandLandmarkerOptions.builder()
+            .setBaseOptions(BaseOptions.builder().setModelAssetPath("tracking/hand_landmarker.task").setDelegate(d).build())
+            .setRunningMode(RunningMode.IMAGE).setNumHands(2).build())
         val gpu = try { face(Delegate.GPU) to pose(Delegate.GPU) } catch (e: Throwable) {
             File(context.filesDir,"device_gpu.json").writeText(JSONObject(mapOf("gpu" to false,"reason" to e.toString())).toString(2))
             null
         }
         assumeTrue("GPU delegate unavailable on this device",gpu != null)
         val cpu = face(Delegate.CPU) to pose(Delegate.CPU)
+        // Hands are compared separately so the per-tracker GPU switch has evidence too.
+        val handBitmap = instrumentation.context.assets.open("parity/thumb_up.jpg").use { BitmapFactory.decodeStream(it) }
+        val handImage = BitmapImageBuilder(handBitmap).build()
+        val handsCpu = hands(Delegate.CPU)
+        val handsGpu = runCatching { hands(Delegate.GPU) }
         try {
+            var handXy: Any = "GPU unavailable: ${handsGpu.exceptionOrNull()}"
+            handsGpu.getOrNull()?.let { g ->
+                var e = 0.0
+                handsCpu.detect(handImage).landmarks()[0].zip(g.detect(handImage).landmarks()[0]).forEach { (a,b) -> e = maxOf(e,abs(a.x()-b.x()).toDouble(),abs(a.y()-b.y()).toDouble()) }
+                handXy = e
+            }
             val fc = cpu.first.detect(image); val fg = gpu!!.first.detect(image)
             val pc = cpu.second.detect(image); val pg = gpu.second.detect(image)
             var xy = 0.0; var blend = 0.0; var matrix = 0.0; var poseXy = 0.0; var adapted = 0.0
@@ -142,9 +156,12 @@ class DevicePipelineTest {
             val a = LandmarkAdapter.adapt(0.0,pts(fc.faceLandmarks()[0]),pts(pc.landmarks()[0]),emptyList(),emptyMap(),null,emptyList(),emptyList(),bitmap.width,bitmap.height)
             val b = LandmarkAdapter.adapt(0.0,pts(fg.faceLandmarks()[0]),pts(pg.landmarks()[0]),emptyList(),emptyMap(),null,emptyList(),emptyList(),bitmap.width,bitmap.height)
             for ((k,v) in a.row) if (k.startsWith("face_") || k.startsWith("pose_")) adapted = maxOf(adapted,abs(v-(b.row[k] ?: Double.NaN)))
-            val report = JSONObject(mapOf("gpu" to true,"face_xy" to xy,"blendshapes" to blend,"matrix" to matrix,"pose_xy" to poseXy,"adapted" to adapted))
+            val report = JSONObject(mapOf("gpu" to true,"face_xy" to xy,"blendshapes" to blend,"matrix" to matrix,"pose_xy" to poseXy,"adapted" to adapted,"hand_xy" to handXy))
             File(context.filesDir,"device_gpu.json").writeText(report.toString(2))
-            assertTrue(report.toString(),xy <= .01 && poseXy <= .01 && blend <= .05 && matrix <= .2 && adapted <= .03)
-        } finally { listOf(cpu.first,cpu.second,gpu!!.first,gpu.second).forEach { it.close() }; image.close(); bitmap.recycle() }
+            assertTrue(report.toString(),xy <= .01 && poseXy <= .01 && blend <= .05 && matrix <= .2 && adapted <= .03 && (handXy !is Double || handXy as Double <= .01))
+        } finally {
+            listOf(cpu.first,cpu.second,gpu!!.first,gpu.second,handsCpu).forEach { it.close() }; handsGpu.getOrNull()?.close()
+            image.close(); bitmap.recycle(); handImage.close(); handBitmap.recycle()
+        }
     }
 }
