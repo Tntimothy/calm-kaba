@@ -509,6 +509,9 @@ class _HomePageState extends State<HomePage>
                       ),
                       DropdownButton<double>(
                         value: _hintTargetMs,
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
                         items: const [
                           DropdownMenuItem(value: 0, child: Text('Off')),
                           DropdownMenuItem(value: 50, child: Text('50 ms')),
