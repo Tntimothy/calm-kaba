@@ -14,7 +14,11 @@ import android.os.SystemClock
 class Diagnostics {
     class Series(capacity: Int = 120) {
         private val values = LongArray(capacity); private var count = 0; private var next = 0
-        @Synchronized fun add(ns: Long) { values[next] = ns; next = (next+1)%values.size; if (count < values.size) count++ }
+        /** Every sample while recording, so a benchmark can take one p95 over a whole run. */
+        private var history: MutableList<Long>? = null
+        @Synchronized fun record(on: Boolean) { history = if (on) mutableListOf() else null }
+        @Synchronized fun recorded(): LongArray = history?.toLongArray() ?: LongArray(0)
+        @Synchronized fun add(ns: Long) { values[next] = ns; next = (next+1)%values.size; if (count < values.size) count++; history?.add(ns) }
         @Synchronized fun clear() { count = 0; next = 0 }
         @Synchronized fun summary(): Map<String, Double>? {
             if (count == 0) return null
