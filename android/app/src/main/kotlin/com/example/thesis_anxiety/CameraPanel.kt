@@ -93,6 +93,9 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
      * landmarks are not drawn. Use cases, stream sizes, ViewPort and analysis are unchanged.
      */
     @Volatile var hidePreview = false
+    /** Experiment, next scan: request 480x360 for analysis only (models were trained on 640x480 landmarks). */
+    @Volatile var lowResAnalysis = false
+    @Volatile private var analysisRequested = ""
     @Volatile private var previewHidden = false
     private val discardSurface = Preview.SurfaceProvider { request ->
         val size = request.resolution
@@ -250,7 +253,11 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
                 previewHidden = hidePreview
                 usePreview.setSurfaceProvider(if (previewHidden) discardSurface else preview.surfaceProvider)
                 overlay.visibility = if (previewHidden) View.INVISIBLE else View.VISIBLE
-                val analysisBuilder = ImageAnalysis.Builder().setTargetRotation(rotation).setResolutionSelector(resolution)
+                // Same 4:3 aspect, so the shared ViewPort keeps the field of view and crop mapping.
+                val analysisSize = if (lowResAnalysis) Size(480,360) else Size(640,480)
+                analysisRequested = "${analysisSize.width}x${analysisSize.height}"
+                val analysisResolution = ResolutionSelector.Builder().setResolutionStrategy(ResolutionStrategy(analysisSize,ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)).build()
+                val analysisBuilder = ImageAnalysis.Builder().setTargetRotation(rotation).setResolutionSelector(analysisResolution)
                     .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 if (locked != null) Camera2Interop.Extender(analysisBuilder).setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, locked)
@@ -303,7 +310,7 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
         var mark = System.nanoTime(); diag.stage("cropRotate",mark-converted)
         if (frameCount++ % 15 == 0) diag.brightness = meanBrightness(rotated)
         fun lap(name: String) { val now = System.nanoTime(); diag.stage(name,now-mark); mark = now }
-        if (diag.input.isEmpty()) diag.input = mapOf("analysis" to "${image.width}x${image.height}",
+        if (diag.input.isEmpty()) diag.input = mapOf("analysisRequested" to analysisRequested, "analysis" to "${image.width}x${image.height}",
             "crop" to "${crop.width()}x${crop.height()}", "modelInput" to "${rotated.width}x${rotated.height}",
             "rotation" to image.imageInfo.rotationDegrees, "format" to "RGBA_8888", "camera" to if (mirrored) "front" else "back",
             "bitmapReuse" to (original === rgbaBuffer.bitmap), "rowStride" to image.planes.firstOrNull()?.rowStride,

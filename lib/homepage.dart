@@ -30,6 +30,7 @@ class _HomePageState extends State<HomePage>
   final Set<String> _gpuTasks = {};
   bool _fpsLock = true;
   bool _hidePreview = false;
+  bool _lowResAnalysis = false;
   int _selectedTabIndex = 0;
   String _status =
       'Keep your face, shoulders, and hands visible. Move back for knees.';
@@ -480,6 +481,17 @@ class _HomePageState extends State<HomePage>
                       setState(() => _hidePreview = value);
                       unawaited(
                         _detectionService.setOption('hidePreview', value),
+                      );
+                    },
+                  ),
+                if (_developerMode)
+                  _developerSwitch(
+                    'Experiment: 480×360 analysis (models trained on 640×480; next scan)',
+                    _lowResAnalysis,
+                    (value) {
+                      setState(() => _lowResAnalysis = value);
+                      unawaited(
+                        _detectionService.setOption('lowResAnalysis', value),
                       );
                     },
                   ),
