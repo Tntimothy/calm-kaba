@@ -272,10 +272,11 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
                 })
                 if (locked != null) Camera2Interop.Extender(previewBuilder).setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, locked)
                 val usePreview = previewBuilder.build()
-                // The PreviewView stays laid out, so the ViewPort below is identical when hidden.
+                // INVISIBLE keeps the PreviewView laid out, so the ViewPort below is identical when hidden;
+                // hiding it also stops it showing a stale frame from an earlier scan.
                 previewHidden = hidePreview
                 usePreview.setSurfaceProvider(if (previewHidden) discardSurface else preview.surfaceProvider)
-                overlay.visibility = if (previewHidden) View.INVISIBLE else View.VISIBLE
+                (if (previewHidden) View.INVISIBLE else View.VISIBLE).let { preview.visibility = it; overlay.visibility = it }
                 // Same 4:3 aspect, so the shared ViewPort keeps the field of view and crop mapping.
                 val analysisSize = if (lowResAnalysis) Size(480,360) else Size(640,480)
                 analysisRequested = "${analysisSize.width}x${analysisSize.height}"
