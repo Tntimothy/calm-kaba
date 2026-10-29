@@ -261,7 +261,9 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
                 // Same 4:3 aspect, so the shared ViewPort keeps the field of view and crop mapping.
                 val analysisSize = if (lowResAnalysis) Size(480,360) else Size(640,480)
                 analysisRequested = "${analysisSize.width}x${analysisSize.height}"
-                val analysisResolution = ResolutionSelector.Builder().setResolutionStrategy(ResolutionStrategy(analysisSize,ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)).build()
+                // Without 480x360, take the next larger size rather than e.g. 320x240.
+                val analysisResolution = ResolutionSelector.Builder().setResolutionStrategy(ResolutionStrategy(analysisSize,
+                    if (lowResAnalysis) ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER else ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)).build()
                 val analysisBuilder = ImageAnalysis.Builder().setTargetRotation(rotation).setResolutionSelector(analysisResolution)
                     .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
