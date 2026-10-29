@@ -41,8 +41,11 @@ import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.core.Delegate
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarker
+import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarkerResult
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
+import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
 import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarker
+import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarkerResult
 import io.flutter.plugin.platform.PlatformView
 import org.json.JSONObject
 import java.util.concurrent.Callable
@@ -54,8 +57,10 @@ import java.util.concurrent.ThreadFactory
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * CameraX owns a latest-frame buffer. One worker owns model/window state; the three
- * tracking tasks run concurrently, each created, used and closed on its own thread.
+ * Pipeline: the analysis thread copies each CameraX frame into an owned buffer and closes it
+ * at once, then prepares frame N+1 while the tracking thread runs face, pose and hands on frame N
+ * (latest-frame hand-off, three buffers). The results thread owns window/model state. Each
+ * tracking task is created, used and closed on its own thread.
  */
 class CameraPanel(private val activity: MainActivity, private val emit: (Map<String, Any?>) -> Unit) : PlatformView {
     private val root = FrameLayout(activity)
@@ -70,16 +75,27 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
     private val generation = AtomicInteger()
     private var provider: ProcessCameraProvider? = null
     private var analysis: ImageAnalysis? = null
-    private var bank: ModelBank? = null
+    @Volatile private var bank: ModelBank? = null
     private val faceThread = Executors.newSingleThreadExecutor(trackingThreadFactory("calm-face"))
     private val poseThread = Executors.newSingleThreadExecutor(trackingThreadFactory("calm-pose"))
     private val handThread = Executors.newSingleThreadExecutor(trackingThreadFactory("calm-hands"))
+    /** Runs the trackers on one prepared frame at a time, in capture order. */
+    private val trackerThread = Executors.newSingleThreadExecutor(trackingThreadFactory("calm-tracking"))
+    /** Adaptation, window, events and predictions, in timestamp order, off the tracking path. */
+    private val resultsThread = Executors.newSingleThreadExecutor(trackingThreadFactory("calm-results"))
     private fun <T> on(thread: ExecutorService, block: () -> T) = thread.submit(Callable(block))
     @Volatile private var face: FaceLandmarker? = null
     @Volatile private var pose: PoseLandmarker? = null
     @Volatile private var hands: HandLandmarker? = null
-    private val window = LiveWindow()
+    private val buffers = List(3) { Frame() }
+    private val frames = FramePipeline(buffers,{ it.releaseInput() },{ diag.skipped.tick() })
+    /** For lifecycle tests: no frame is pending or being tracked. */
+    internal val framesIdle get() = frames.idle()
+    // Owned by trackerThread.
     private var lastMs = -1L
+    private var lastDone = 0L
+    // Owned by resultsThread.
+    private val window = LiveWindow()
     private var lastTracking: Map<String, Boolean>? = null
     private var lastTrackingEvent = 0L
     @Volatile private var disposed = false
@@ -114,7 +130,6 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
     }
     private var startedAt = 0L
     private var frameCount = 0
-    private val rgbaBuffer = RgbaFrameBuffer()
     /** Phone state that changes speed: battery, power saving, heat. Read once per diagnostics packet. */
     private fun deviceInfo(): Map<String, Any?> {
         val power = activity.getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -181,7 +196,7 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
                 val p = on(poseThread) { pose = createPose(wantsGpu("pose")); Process.myTid() }
                 val h = on(handThread) { hands = createHands(wantsGpu("hands")); Process.myTid() }
                 hints.open(intArrayOf(Process.myTid(),f.get(),p.get(),h.get()),(hintTargetMs*1e6).toLong())
-                window.reset(); lastMs = -1; lastTracking = null
+                resetScanState()
                 main.post { if (!disposed && generation.get() == id) bindCamera(id) }
             } catch (e: Throwable) { fail(id,e) }
         }
@@ -277,7 +292,7 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
                 useAnalysis.setAnalyzer(worker) { image ->
                     diag.delivered.tick()
                     if (generation.get() != id || disposed) { diag.skipped.tick(); image.close(); return@setAnalyzer }
-                    try { process(image,id,mirrored) } catch (e: Throwable) { fail(id,e) } finally { image.close() }
+                    try { prepare(image,id,mirrored) } catch (e: Throwable) { fail(id,e) }
                 }
                 // Shared ViewPort gives analysis the exact crop shown in the preview.
                 val group = UseCaseGroup.Builder().addUseCase(usePreview).addUseCase(useAnalysis)
@@ -305,37 +320,77 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
     private fun points(raw: List<NormalizedLandmark>): List<Point3> = raw.map {
         Point3(it.x().toDouble(),it.y().toDouble(),it.z().toDouble(),it.visibility().orElse(1f).toDouble(),it.presence().orElse(1f).toDouble())
     }
-    private fun process(image: ImageProxy, id: Int, mirrored: Boolean) {
+    /** Analysis thread: copy into an owned buffer, close the ImageProxy at once, then hand off. */
+    private fun prepare(image: ImageProxy, id: Int, mirrored: Boolean) {
         val begin = System.nanoTime()
-        val sensorNs = image.imageInfo.timestamp
-        diag.age(sensorNs)?.let { diag.stage("captureToAnalyzer",it) }
-        // Padded RGBA rows still use CameraX's conversion; crop/rotation is unchanged.
-        // No front-camera reflection enters a MediaPipe/model input.
-        val original = rgbaBuffer.copy(image)
-        val converted = System.nanoTime(); diag.stage("convert",converted-begin)
-        val crop = image.cropRect
-        val rotated = uprightInput(original,crop,image.imageInfo.rotationDegrees)
-        val mpImage = if (rotated === rgbaBuffer.bitmap) rgbaBuffer.image!! else BitmapImageBuilder(rotated).build()
-        val readers = ArrayList<Future<*>>(3)
-        var mark = System.nanoTime(); diag.stage("cropRotate",mark-converted)
-        if (frameCount++ % 15 == 0) diag.brightness = meanBrightness(rotated)
-        fun lap(name: String) { val now = System.nanoTime(); diag.stage(name,now-mark); mark = now }
-        if (diag.input.isEmpty()) diag.input = mapOf("analysisRequested" to analysisRequested, "analysis" to "${image.width}x${image.height}",
-            "crop" to "${crop.width()}x${crop.height()}", "modelInput" to "${rotated.width}x${rotated.height}",
-            "rotation" to image.imageInfo.rotationDegrees, "format" to "RGBA_8888", "camera" to if (mirrored) "front" else "back",
-            "bitmapReuse" to (original === rgbaBuffer.bitmap), "rowStride" to image.planes.firstOrNull()?.rowStride,
-            "workerPriority" to Process.getThreadPriority(Process.myTid()), "previewHidden" to previewHidden,
-            "cameraXRotation" to cameraXRotation)
+        val frame = try { frames.acquire() } catch (e: Throwable) { image.close(); throw e }
+        var published = false
         try {
-            val ms = maxOf(lastMs+1,image.imageInfo.timestamp/1_000_000)
+            var crop = Rect(); var rotation = 0; var size = ""; var rowStride: Int? = null
+            // No front-camera reflection enters a MediaPipe/model input.
+            val original = image.use {
+                frame.id = id; frame.sensorNs = it.imageInfo.timestamp; frame.arrivedNs = begin; frame.mirrored = mirrored
+                diag.age(frame.sensorNs)?.let { age -> diag.stage("captureToAnalyzer",age) }
+                crop = Rect(it.cropRect); rotation = it.imageInfo.rotationDegrees
+                size = "${it.width}x${it.height}"; rowStride = it.planes.firstOrNull()?.rowStride
+                frame.pixels.copy(it)
+            }
+            val converted = System.nanoTime(); diag.stage("convert",converted-begin)
+            val input = uprightInput(original,crop,rotation)
+            // A padded-row fallback copy is only needed until it is cropped.
+            if (original !== frame.pixels.bitmap && original !== input) original.recycle()
+            frame.input = input
+            frame.image = if (input === frame.pixels.bitmap) frame.pixels.image!! else BitmapImageBuilder(input).build()
+            frame.preparedNs = System.nanoTime(); diag.stage("cropRotate",frame.preparedNs-converted)
+            if (frameCount++ % 15 == 0) diag.brightness = meanBrightness(input)
+            if (diag.input.isEmpty()) diag.input = mapOf("analysisRequested" to analysisRequested, "analysis" to size,
+                "crop" to "${crop.width()}x${crop.height()}", "modelInput" to "${input.width}x${input.height}",
+                "rotation" to rotation, "format" to "RGBA_8888", "camera" to if (mirrored) "front" else "back",
+                "bitmapReuse" to (original === frame.pixels.bitmap), "rowStride" to rowStride,
+                "workerPriority" to Process.getThreadPriority(Process.myTid()), "previewHidden" to previewHidden,
+                "cameraXRotation" to cameraXRotation, "pipelined" to true)
+            published = true
+            if (frames.publish(frame)) trackerThread.execute { drain() }
+        } finally { if (!published) frames.release(frame) }
+    }
+    /** Tracking thread: the newest prepared frame each time, until none is pending. */
+    private fun drain() { while (true) track(frames.take() ?: return) }
+    private fun track(frame: Frame) {
+        val readers = ArrayList<Future<*>>(3)
+        try {
+            val id = frame.id
+            if (generation.get() != id || disposed) return
+            val start = System.nanoTime(); diag.stage("trackerWait",start-frame.preparedNs)
+            val ms = maxOf(lastMs+1,frame.sensorNs/1_000_000)
             val interrupted = lastMs >= 0 && ms-lastMs > 500
             lastMs = ms
-            // The tasks only read the shared input image.
+            // The tasks only read the frame's input image.
+            val image = frame.image!!
             fun <T> timed(name: String, block: () -> T): T { val t = System.nanoTime(); return block().also { diag.stage(name,System.nanoTime()-t) } }
-            val ff = on(faceThread) { timed("face") { runOrFallback("face",{ face },{ createFace(false).also { face = it } }) { it.detectForVideo(mpImage,ms) } } }.also { readers.add(it) }
-            val pf = on(poseThread) { timed("pose") { runOrFallback("pose",{ pose },{ createPose(false).also { pose = it } }) { it.detectForVideo(mpImage,ms) } } }.also { readers.add(it) }
-            val hf = on(handThread) { timed("hands") { runOrFallback("hands",{ hands },{ createHands(false).also { hands = it } }) { it.detectForVideo(mpImage,ms) } } }.also { readers.add(it) }
-            val f = ff.get(); val p = pf.get(); val h = hf.get(); lap("tracking")
+            val ff = on(faceThread) { timed("face") { runOrFallback("face",{ face },{ createFace(false).also { face = it } }) { it.detectForVideo(image,ms) } } }.also { readers.add(it) }
+            val pf = on(poseThread) { timed("pose") { runOrFallback("pose",{ pose },{ createPose(false).also { pose = it } }) { it.detectForVideo(image,ms) } } }.also { readers.add(it) }
+            val hf = on(handThread) { timed("hands") { runOrFallback("hands",{ hands },{ createHands(false).also { hands = it } }) { it.detectForVideo(image,ms) } } }.also { readers.add(it) }
+            val f = ff.get(); val p = pf.get(); val h = hf.get()
+            val done = System.nanoTime(); diag.stage("tracking",done-start)
+            // One ADPF work cycle per frame, from its arrival or the previous frame's end, whichever is
+            // later: overlapping preparation is counted once and idle camera waits are excluded.
+            hints.report(done-maxOf(frame.arrivedNs,lastDone)); lastDone = done
+            val width = frame.input!!.width; val height = frame.input!!.height
+            val sensorNs = frame.sensorNs; val arrivedNs = frame.arrivedNs; val mirrored = frame.mirrored
+            resultsThread.execute { publishResults(id,ms,interrupted,f,p,h,width,height,mirrored,sensorNs,arrivedNs) }
+        } catch (e: Throwable) { fail(frame.id,e) }
+        finally {
+            // A failed tracker must still wait for the other image readers before the buffer is reused.
+            awaitTrackerReaders(readers)
+            frames.release(frame)
+        }
+    }
+    /** Results thread: frames arrive in capture order, so the window is updated in timestamp order. */
+    private fun publishResults(id: Int, ms: Long, interrupted: Boolean, f: FaceLandmarkerResult, p: PoseLandmarkerResult, h: HandLandmarkerResult,
+                               width: Int, height: Int, mirrored: Boolean, sensorNs: Long, arrivedNs: Long) {
+        if (generation.get() != id || disposed) return
+        try {
+            val begin = System.nanoTime()
             val fp = f.faceLandmarks().firstOrNull()?.let { points(it) } ?: emptyList()
             val pp = p.landmarks().firstOrNull()?.let { points(it) } ?: emptyList()
             val hh = h.landmarks().map { points(it) }
@@ -345,12 +400,11 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
             val packed = f.facialTransformationMatrixes().orElse(emptyList()).firstOrNull()
             val matrix = packed?.let { LandmarkAdapter.rowMajorMatrix(it) }
             val engine = bank!!.engine
-            val observation = LandmarkAdapter.adapt(ms/1000.0,fp,pp,hh,blend,matrix,engine.bs,engine.fm,rotated.width,rotated.height)
+            val observation = LandmarkAdapter.adapt(ms/1000.0,fp,pp,hh,blend,matrix,engine.bs,engine.fm,width,height)
             val snapshot = window.push(observation)
-            lap("adaptWindow")
+            diag.stage("adaptWindow",System.nanoTime()-begin)
             val faceDraw = LandmarkAdapter.face.filter { it < fp.size }.map { fp[it] }
-            val imageWidth = rotated.width; val imageHeight = rotated.height
-            if (!previewHidden) main.post { if (generation.get() == id && !disposed) overlay.update(faceDraw,pp,hh,imageWidth,imageHeight,mirrored,sensorNs) }
+            if (!previewHidden) main.post { if (generation.get() == id && !disposed) overlay.update(faceDraw,pp,hh,width,height,mirrored,sensorNs) }
             // UI status at ~5 Hz; tracking-state changes and interruptions are sent at once.
             val now = SystemClock.elapsedRealtime()
             if (interrupted || observation.tracking != lastTracking || now-lastTrackingEvent >= 200) {
@@ -358,6 +412,7 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
                 event(id,mapOf("type" to "tracking", "tracking" to observation.tracking, "progress" to window.progress(), "interrupted" to interrupted))
             }
             if (snapshot != null) {
+                // The snapshot is a copy, so later frames cannot change this window.
                 val packet = bank!!.predict(snapshot.first,snapshot.second) { name, ns -> diag.stage(name,ns) }
                 diag.predictions.tick()
                 // The newest frame ends the window; this age shows how stale a prediction is.
@@ -365,17 +420,9 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
                 event(id,packet+mapOf("type" to "prediction"))
             }
             val end = System.nanoTime()
-            diag.stage("total",end-begin); diag.processed.tick(end); diag.tracking(observation.tracking,end)
-            // One work cycle per processed frame: wall time from frame arrival, not summed tracker times.
-            hints.report(end-begin)
+            diag.stage("total",end-arrivedNs); diag.processed.tick(end); diag.tracking(observation.tracking,end)
             diag.age(sensorNs)?.let { diag.stage("captureToResult",it) }
-        } finally {
-            // A failed tracker must still wait for the other image readers.
-            awaitTrackerReaders(readers)
-            // Closing MPImage recycles its bitmap; keep the reusable wrapper alive too.
-            if (mpImage !== rgbaBuffer.image) mpImage.close()
-            if (original !== rgbaBuffer.bitmap && original !== rotated) original.recycle()
-        }
+        } catch (e: Throwable) { fail(id,e) }
     }
     fun stop() {
         running = false; generation.incrementAndGet()
@@ -384,18 +431,26 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
         overlay.update(emptyList(),emptyList(),emptyList(),1,1,false,0)
         if (!worker.isShutdown) worker.execute { closeModels() }
     }
+    /** Per-scan state is reset on the thread that owns it; this also waits for work queued there. */
+    private fun resetScanState() {
+        on(trackerThread) { lastMs = -1; lastDone = 0 }.get()
+        on(resultsThread) { window.reset(); lastTracking = null }.get()
+    }
     private fun closeModels() {
+        // Drop the pending frame; the tracked frame and its queued results finish before anything closes.
+        frames.clear()
+        resetScanState()
         hints.close()
         val closing = listOf(on(faceThread) { runCatching { face?.close() }; face = null }, on(poseThread) { runCatching { pose?.close() }; pose = null },
             on(handThread) { runCatching { hands?.close() }; hands = null })
         closing.forEach { runCatching { it.get() } }
-        rgbaBuffer.close()
-        bank?.close(); bank = null; window.reset(); lastMs = -1
+        if (frames.idle()) buffers.forEach { it.close() } else Log.e("CalmCamera", "Frame buffers still in use after stop; not recycling them")
+        bank?.close(); bank = null
     }
     override fun dispose() {
         if (disposed) return
         disposed = true; stop()
-        worker.execute { listOf(faceThread,poseThread,handThread).forEach { it.shutdown() } }
+        worker.execute { listOf(trackerThread,resultsThread,faceThread,poseThread,handThread).forEach { it.shutdown() } }
         worker.shutdown()
         activity.detachPanel(this)
     }
@@ -409,7 +464,22 @@ internal fun trackingThreadFactory(name: String) = ThreadFactory { task ->
     }, name)
 }
 
-/** Owned by the single analysis worker, including resize and stop/dispose cleanup. */
+/** A reusable frame buffer and the metadata of the camera frame it holds; owned via [FramePipeline]. */
+private class Frame {
+    val pixels = RgbaFrameBuffer()
+    var input: Bitmap? = null; var image: MPImage? = null
+    var id = 0; var sensorNs = 0L; var arrivedNs = 0L; var preparedNs = 0L; var mirrored = false
+    /** Frees a per-frame input (a crop or padded-row copy); the reusable pixels stay. */
+    fun releaseInput() {
+        // Closing MPImage recycles its bitmap; the reusable wrapper stays alive.
+        if (image != null && image !== pixels.image) image!!.close()
+        else if (input != null && input !== pixels.bitmap) input!!.recycle()
+        input = null; image = null
+    }
+    fun close() { releaseInput(); pixels.close() }
+}
+
+/** Owned by one thread at a time, including resize and stop/dispose cleanup. */
 internal class RgbaFrameBuffer : AutoCloseable {
     var bitmap: Bitmap? = null; private set
     var image: MPImage? = null; private set
