@@ -101,6 +101,9 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
      * crop + rotate (CameraXRotationParityTest); false restores the old path for A/B runs.
      */
     @Volatile var cameraXRotation = true
+    /** ADPF work target for the next scan in ms (0 = off), e.g. 50 for 20 fps or 33.3 for 30 fps. */
+    @Volatile var hintTargetMs = 0.0
+    private val hints = WorkHints(activity)
     @Volatile private var previewHidden = false
     private val discardSurface = Preview.SurfaceProvider { request ->
         val size = request.resolution
@@ -124,7 +127,7 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
             "battery%" to battery.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY),
             "charging" to battery.isCharging, "batterySaver" to power.isPowerSaveMode,
             "heat" to thermal, "heatHeadroom" to if (Build.VERSION.SDK_INT >= 30) power.getThermalHeadroom(10).takeIf { it.isFinite() } else null,
-            "scanSeconds" to if (startedAt > 0) (SystemClock.elapsedRealtime()-startedAt)/1000 else 0)
+            "scanSeconds" to if (startedAt > 0) (SystemClock.elapsedRealtime()-startedAt)/1000 else 0, "adpf" to hints.status)
     }
     /** Requested MediaPipe delegate for the next start ("CPU" or "GPU"). */
     @Volatile var requestedDelegate = "CPU"
@@ -174,10 +177,10 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
                     val bytes = activity.assets.open("tracking/$name").use { it.readBytes() }
                     require(ModelBank.sha256(bytes) == sources.getJSONObject(name).getString("sha256")) { "Tracking asset checksum failed: $name" }
                 }
-                val f = on(faceThread) { face = createFace(wantsGpu("face")) }
-                val p = on(poseThread) { pose = createPose(wantsGpu("pose")) }
-                val h = on(handThread) { hands = createHands(wantsGpu("hands")) }
-                f.get(); p.get(); h.get()
+                val f = on(faceThread) { face = createFace(wantsGpu("face")); Process.myTid() }
+                val p = on(poseThread) { pose = createPose(wantsGpu("pose")); Process.myTid() }
+                val h = on(handThread) { hands = createHands(wantsGpu("hands")); Process.myTid() }
+                hints.open(intArrayOf(Process.myTid(),f.get(),p.get(),h.get()),(hintTargetMs*1e6).toLong())
                 window.reset(); lastMs = -1; lastTracking = null
                 main.post { if (!disposed && generation.get() == id) bindCamera(id) }
             } catch (e: Throwable) { fail(id,e) }
@@ -363,6 +366,8 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
             }
             val end = System.nanoTime()
             diag.stage("total",end-begin); diag.processed.tick(end); diag.tracking(observation.tracking,end)
+            // One work cycle per processed frame: wall time from frame arrival, not summed tracker times.
+            hints.report(end-begin)
             diag.age(sensorNs)?.let { diag.stage("captureToResult",it) }
         } finally {
             // A failed tracker must still wait for the other image readers.
@@ -380,6 +385,7 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
         if (!worker.isShutdown) worker.execute { closeModels() }
     }
     private fun closeModels() {
+        hints.close()
         val closing = listOf(on(faceThread) { runCatching { face?.close() }; face = null }, on(poseThread) { runCatching { pose?.close() }; pose = null },
             on(handThread) { runCatching { hands?.close() }; hands = null })
         closing.forEach { runCatching { it.get() } }

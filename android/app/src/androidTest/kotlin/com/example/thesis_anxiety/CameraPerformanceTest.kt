@@ -19,7 +19,7 @@ class CameraPerformanceTest {
         val context = instrumentation.targetContext
         val activity = instrumentation.startActivitySync(Intent(context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
-        // A/B options: -e cameraXRotation false, -e hidePreview true, -e lowResAnalysis true, -e seconds 600.
+        // A/B options: -e cameraXRotation false, -e hidePreview true, -e lowResAnalysis true, -e hintTargetMs 33.3, -e seconds 600.
         val args = InstrumentationRegistry.getArguments()
         val seconds = args.getString("seconds")?.toInt() ?: 30
         val packets = JSONArray()
@@ -44,6 +44,7 @@ class CameraPerformanceTest {
                 it.cameraXRotation = args.getString("cameraXRotation") != "false"
                 it.hidePreview = args.getString("hidePreview") == "true"
                 it.lowResAnalysis = args.getString("lowResAnalysis") == "true"
+                it.hintTargetMs = args.getString("hintTargetMs")?.toDouble() ?: 0.0
                 it.start()
             }
         }

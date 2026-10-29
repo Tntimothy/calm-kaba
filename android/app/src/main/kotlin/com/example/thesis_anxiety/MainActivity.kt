@@ -20,6 +20,7 @@ class MainActivity : FlutterActivity() {
     private var lockFps30 = true
     private var hidePreview = false
     private var lowResAnalysis = false
+    private var hintTargetMs = 0.0
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
@@ -30,7 +31,7 @@ class MainActivity : FlutterActivity() {
         flutterEngine.platformViewsController.registry.registerViewFactory("calm/camera",object : PlatformViewFactory(StandardMessageCodec.INSTANCE) {
             override fun create(context: Context, viewId: Int, args: Any?): PlatformView {
                 panel?.stop()
-                return CameraPanel(this@MainActivity) { sink?.success(it) }.also { panel = it; it.diagnosticsEnabled = diagnostics; it.modelFolder = modelFolder; it.requestedDelegate = trackingDelegate; it.lockFps30 = lockFps30; it.hidePreview = hidePreview; it.lowResAnalysis = lowResAnalysis }
+                return CameraPanel(this@MainActivity) { sink?.success(it) }.also { panel = it; it.diagnosticsEnabled = diagnostics; it.modelFolder = modelFolder; it.requestedDelegate = trackingDelegate; it.lockFps30 = lockFps30; it.hidePreview = hidePreview; it.lowResAnalysis = lowResAnalysis; it.hintTargetMs = hintTargetMs }
             }
         })
         MethodChannel(messenger,"calm/detection").setMethodCallHandler { call,result ->
@@ -42,6 +43,7 @@ class MainActivity : FlutterActivity() {
                 "delegate" -> { trackingDelegate = (call.arguments as? String)?.ifBlank { "CPU" } ?: "CPU"; panel?.requestedDelegate = trackingDelegate; result.success(null) }
                 "fpsLock" -> { lockFps30 = call.arguments == true; panel?.lockFps30 = lockFps30; result.success(null) }
                 "lowResAnalysis" -> { lowResAnalysis = call.arguments == true; panel?.lowResAnalysis = lowResAnalysis; result.success(null) }
+                "hintTarget" -> { hintTargetMs = (call.arguments as? Number)?.toDouble() ?: 0.0; panel?.hintTargetMs = hintTargetMs; result.success(null) }
                 "hidePreview" -> { hidePreview = call.arguments == true; panel?.hidePreview = hidePreview; result.success(null) }
                 "diagnostics" -> { diagnostics = call.arguments == true; panel?.diagnosticsEnabled = diagnostics; result.success(null) }
                 else -> result.notImplemented()

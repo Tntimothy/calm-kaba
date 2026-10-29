@@ -31,6 +31,7 @@ class _HomePageState extends State<HomePage>
   bool _fpsLock = true;
   bool _hidePreview = false;
   bool _lowResAnalysis = false;
+  double _hintTargetMs = 0;
   int _selectedTabIndex = 0;
   String _status =
       'Keep your face, shoulders, and hands visible. Move back for knees.';
@@ -494,6 +495,38 @@ class _HomePageState extends State<HomePage>
                         _detectionService.setOption('lowResAnalysis', value),
                       );
                     },
+                  ),
+                if (_developerMode)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Android performance hint target (ADPF, Android 12+; next scan)',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      DropdownButton<double>(
+                        value: _hintTargetMs,
+                        items: const [
+                          DropdownMenuItem(value: 0, child: Text('Off')),
+                          DropdownMenuItem(value: 50, child: Text('50 ms')),
+                          DropdownMenuItem(value: 33.3, child: Text('33.3 ms')),
+                        ],
+                        onChanged: _isDetecting
+                            ? null
+                            : (value) {
+                                setState(() => _hintTargetMs = value ?? 0);
+                                unawaited(
+                                  _detectionService.setOption(
+                                    'hintTarget',
+                                    _hintTargetMs,
+                                  ),
+                                );
+                              },
+                      ),
+                    ],
                   ),
                 if (_developerMode)
                   DiagnosticsPanel(source: _detectionService.diagnostics),
