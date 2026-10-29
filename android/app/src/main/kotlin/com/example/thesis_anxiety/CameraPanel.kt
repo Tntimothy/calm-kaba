@@ -96,6 +96,11 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
     /** Experiment, next scan: request 480x360 for analysis only (models were trained on 640x480 landmarks). */
     @Volatile var lowResAnalysis = false
     @Volatile private var analysisRequested = ""
+    /**
+     * CameraX rotates RGBA upstream (setOutputImageRotationEnabled). Pixel-exact with the old
+     * crop + rotate (CameraXRotationParityTest); false restores the old path for A/B runs.
+     */
+    @Volatile var cameraXRotation = true
     @Volatile private var previewHidden = false
     private val discardSurface = Preview.SurfaceProvider { request ->
         val size = request.resolution
@@ -260,6 +265,7 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
                 val analysisBuilder = ImageAnalysis.Builder().setTargetRotation(rotation).setResolutionSelector(analysisResolution)
                     .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .setOutputImageRotationEnabled(cameraXRotation)
                 if (locked != null) Camera2Interop.Extender(analysisBuilder).setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, locked)
                 val useAnalysis = analysisBuilder.build()
                 analysis = useAnalysis
@@ -303,8 +309,7 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
         val original = rgbaBuffer.copy(image)
         val converted = System.nanoTime(); diag.stage("convert",converted-begin)
         val crop = image.cropRect
-        val rotated = Bitmap.createBitmap(original,crop.left,crop.top,crop.width(),crop.height(),
-            Matrix().apply { postRotate(image.imageInfo.rotationDegrees.toFloat()) },true)
+        val rotated = uprightInput(original,crop,image.imageInfo.rotationDegrees)
         val mpImage = if (rotated === rgbaBuffer.bitmap) rgbaBuffer.image!! else BitmapImageBuilder(rotated).build()
         val readers = ArrayList<Future<*>>(3)
         var mark = System.nanoTime(); diag.stage("cropRotate",mark-converted)
@@ -314,7 +319,8 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
             "crop" to "${crop.width()}x${crop.height()}", "modelInput" to "${rotated.width}x${rotated.height}",
             "rotation" to image.imageInfo.rotationDegrees, "format" to "RGBA_8888", "camera" to if (mirrored) "front" else "back",
             "bitmapReuse" to (original === rgbaBuffer.bitmap), "rowStride" to image.planes.firstOrNull()?.rowStride,
-            "workerPriority" to Process.getThreadPriority(Process.myTid()), "previewHidden" to previewHidden)
+            "workerPriority" to Process.getThreadPriority(Process.myTid()), "previewHidden" to previewHidden,
+            "cameraXRotation" to cameraXRotation)
         try {
             val ms = maxOf(lastMs+1,image.imageInfo.timestamp/1_000_000)
             val interrupted = lastMs >= 0 && ms-lastMs > 500
@@ -415,6 +421,11 @@ internal class RgbaFrameBuffer : AutoCloseable {
         image?.close(); image = null; bitmap = null
     }
 }
+
+/** Upright tracker input. An already upright, uncropped frame is used as is (same pixels, no copy). */
+internal fun uprightInput(source: Bitmap, crop: Rect, rotation: Int): Bitmap =
+    if (rotation == 0 && crop.left == 0 && crop.top == 0 && crop.width() == source.width && crop.height() == source.height) source
+    else Bitmap.createBitmap(source,crop.left,crop.top,crop.width(),crop.height(),Matrix().apply { postRotate(rotation.toFloat()) },true)
 
 /** Drain every reader even after a failure or interruption, before recycling its image. */
 internal fun awaitTrackerReaders(readers: List<Future<*>>) {
