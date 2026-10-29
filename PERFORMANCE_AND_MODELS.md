@@ -3,6 +3,7 @@
 Original study: version 1.1.0+3. Emulator results only; physical-phone measurements are still outstanding.
 
 Camera follow-up, version 1.1.2+5: [camera speed results and phone checklist](CAMERA_SPEED_RESULTS.md).
+Performance sprint, version 1.2.0+7: [per-tracker GPU, A/B switches, CameraX rotation, ADPF, pipelining](PERFORMANCE_SPRINT.md) (emulator only; phone acceptance outstanding).
 RGBA bitmap reuse and higher worker priority are implemented. MediaPipe rotation
 remains blocked after its landmark/feature preservation check failed; see
 [rotation comparison](ROTATION_PARITY.md). Sustained 20+ processed fps has not been demonstrated.
