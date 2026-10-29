@@ -78,6 +78,8 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
     @Volatile private var hands: HandLandmarker? = null
     private val window = LiveWindow()
     private var lastMs = -1L
+    private var lastTracking: Map<String, Boolean>? = null
+    private var lastTrackingEvent = 0L
     @Volatile private var disposed = false
     @Volatile private var running = false
     /** Model bundle for the next start: "behavior" (822, vs everything) or "behavior_v6" (lead, 1,122, vs control). */
@@ -153,7 +155,7 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
                 val p = on(poseThread) { pose = createPose(wantsGpu("pose")) }
                 val h = on(handThread) { hands = createHands(wantsGpu("hands")) }
                 f.get(); p.get(); h.get()
-                window.reset(); lastMs = -1
+                window.reset(); lastMs = -1; lastTracking = null
                 main.post { if (!disposed && generation.get() == id) bindCamera(id) }
             } catch (e: Throwable) { fail(id,e) }
         }
@@ -313,7 +315,12 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
             val faceDraw = LandmarkAdapter.face.filter { it < fp.size }.map { fp[it] }
             val imageWidth = rotated.width; val imageHeight = rotated.height
             main.post { if (generation.get() == id && !disposed) overlay.update(faceDraw,pp,hh,imageWidth,imageHeight,mirrored,sensorNs) }
-            event(id,mapOf("type" to "tracking", "tracking" to observation.tracking, "progress" to window.progress(), "interrupted" to interrupted))
+            // UI status at ~5 Hz; tracking-state changes and interruptions are sent at once.
+            val now = SystemClock.elapsedRealtime()
+            if (interrupted || observation.tracking != lastTracking || now-lastTrackingEvent >= 200) {
+                lastTracking = observation.tracking; lastTrackingEvent = now
+                event(id,mapOf("type" to "tracking", "tracking" to observation.tracking, "progress" to window.progress(), "interrupted" to interrupted))
+            }
             if (snapshot != null) {
                 val packet = bank!!.predict(snapshot.first,snapshot.second) { name, ns -> diag.stage(name,ns) }
                 diag.predictions.tick()

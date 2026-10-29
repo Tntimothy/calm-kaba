@@ -33,9 +33,10 @@ class _HomePageState extends State<HomePage>
   String _status =
       'Keep your face, shoulders, and hands visible. Move back for knees.';
   List<BehaviorResult> _results = [];
-  double _progress = 0;
   double? _fps;
-  Map<dynamic, dynamic> _tracking = {};
+
+  /// Latest tracking packet. Per-frame packets rebuild only the progress line.
+  final _tracking = ValueNotifier<Map<dynamic, dynamic>>({});
 
   @override
   void initState() {
@@ -48,6 +49,10 @@ class _HomePageState extends State<HomePage>
               packet['type'] != 'error')) {
         return;
       }
+      if (packet['type'] == 'tracking') {
+        _tracking.value = packet;
+        if (packet['interrupted'] != true) return;
+      }
       setState(() {
         switch (packet['type']) {
           case 'status':
@@ -58,13 +63,9 @@ class _HomePageState extends State<HomePage>
             _status = packet['message'] as String;
             _results = [];
           case 'tracking':
-            _tracking = packet['tracking'] as Map;
-            _progress = (packet['progress'] as num).toDouble();
-            if (packet['interrupted'] == true) {
-              _results = [];
-              _fps = null;
-              _status = 'Tracking was interrupted. Collecting a fresh window.';
-            }
+            _results = [];
+            _fps = null;
+            _status = 'Tracking was interrupted. Collecting a fresh window.';
           case 'prediction':
             _results = List.of(_detectionService.results);
             _fps = (packet['fps'] as num).toDouble();
@@ -144,6 +145,7 @@ class _HomePageState extends State<HomePage>
     unawaited(_detectionSubscription?.cancel());
     unawaited(_updateSubscription?.cancel());
     unawaited(_detectionService.dispose());
+    _tracking.dispose();
     super.dispose();
   }
 
@@ -153,8 +155,7 @@ class _HomePageState extends State<HomePage>
       _isDetecting = true;
       _results = [];
       _fps = null;
-      _tracking = {};
-      _progress = 0;
+      _tracking.value = {};
       _status = 'Starting camera and landmark tracking';
     });
     unawaited(_detectionService.startDetection(mode: mode));
@@ -165,9 +166,8 @@ class _HomePageState extends State<HomePage>
       setState(() {
         _isDetecting = false;
         _results = [];
-        _tracking = {};
+        _tracking.value = {};
         _fps = null;
-        _progress = 0;
         _status = 'Scan stopped. Tap Scan Now to begin a fresh window.';
       });
     }
@@ -331,23 +331,34 @@ class _HomePageState extends State<HomePage>
                   ),
                   semanticsLabel: 'Scan status. $_status',
                 ),
-                if (_isDetecting) ...[
-                  const SizedBox(height: 12),
-                  LinearProgressIndicator(
-                    value: _progress,
-                    color: AppColors.textPrimary,
-                    backgroundColor: Colors.white24,
+                if (_isDetecting)
+                  ValueListenableBuilder<Map<dynamic, dynamic>>(
+                    valueListenable: _tracking,
+                    builder: (context, packet, _) {
+                      final tracking = (packet['tracking'] as Map?) ?? {};
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 12),
+                          LinearProgressIndicator(
+                            value:
+                                (packet['progress'] as num?)?.toDouble() ?? 0,
+                            color: AppColors.textPrimary,
+                            backgroundColor: Colors.white24,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Face: ${tracking['face'] == true ? 'tracked' : 'unavailable'}  '
+                            'Body: ${tracking['body'] == true ? 'tracked' : 'unavailable'}'
+                            '${_fps == null ? '' : '  ${_fps!.toStringAsFixed(1)} FPS'}',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Face: ${_tracking['face'] == true ? 'tracked' : 'unavailable'}  '
-                    'Body: ${_tracking['body'] == true ? 'tracked' : 'unavailable'}'
-                    '${_fps == null ? '' : '  ${_fps!.toStringAsFixed(1)} FPS'}',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ],
                 if (_results.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Text(
