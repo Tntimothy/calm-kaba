@@ -29,6 +29,7 @@ class _HomePageState extends State<HomePage>
   bool _leadModels = false;
   final Set<String> _gpuTasks = {};
   bool _fpsLock = true;
+  bool _hidePreview = false;
   int _selectedTabIndex = 0;
   String _status =
       'Keep your face, shoulders, and hands visible. Move back for knees.';
@@ -470,6 +471,17 @@ class _HomePageState extends State<HomePage>
                               },
                       ),
                     ],
+                  ),
+                if (_developerMode)
+                  _developerSwitch(
+                    'Hide preview and landmarks (A/B test; next scan)',
+                    _hidePreview,
+                    (value) {
+                      setState(() => _hidePreview = value);
+                      unawaited(
+                        _detectionService.setOption('hidePreview', value),
+                      );
+                    },
                   ),
                 if (_developerMode)
                   DiagnosticsPanel(source: _detectionService.diagnostics),

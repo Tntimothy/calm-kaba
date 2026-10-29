@@ -194,6 +194,15 @@ class DetectionService {
     }
   }
 
+  /// Developer A/B options that apply on the next scan.
+  Future<void> setOption(String method, Object? value) async {
+    try {
+      await _methods.invokeMethod<void>(method, value);
+    } on MissingPluginException {
+      /* Non-Android widget tests have no camera. */
+    }
+  }
+
   Future<void> setDiagnostics(bool enabled) async {
     if (!enabled) diagnostics.value = null;
     try {

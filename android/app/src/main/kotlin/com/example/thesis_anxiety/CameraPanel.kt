@@ -4,11 +4,13 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.*
+import android.hardware.HardwareBuffer
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.CaptureResult
 import android.hardware.camera2.TotalCaptureResult
+import android.media.ImageReader
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
@@ -86,6 +88,19 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
     @Volatile var modelFolder = "behavior"
     /** Keep the camera at 30 fps in dim light (shorter exposure: darker, noisier frames). */
     @Volatile var lockFps30 = true
+    /**
+     * A/B test for rendering cost, next scan: preview frames go to a discarded surface and
+     * landmarks are not drawn. Use cases, stream sizes, ViewPort and analysis are unchanged.
+     */
+    @Volatile var hidePreview = false
+    @Volatile private var previewHidden = false
+    private val discardSurface = Preview.SurfaceProvider { request ->
+        val size = request.resolution
+        val reader = if (Build.VERSION.SDK_INT >= 29) ImageReader.newInstance(size.width,size.height,ImageFormat.PRIVATE,2,HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE)
+            else ImageReader.newInstance(size.width,size.height,ImageFormat.PRIVATE,2)
+        reader.setOnImageAvailableListener({ it.acquireLatestImage()?.close() },main)
+        request.provideSurface(reader.surface,ContextCompat.getMainExecutor(activity)) { reader.close() }
+    }
     private var startedAt = 0L
     private var frameCount = 0
     private val rgbaBuffer = RgbaFrameBuffer()
@@ -231,7 +246,10 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
                 })
                 if (locked != null) Camera2Interop.Extender(previewBuilder).setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, locked)
                 val usePreview = previewBuilder.build()
-                usePreview.setSurfaceProvider(preview.surfaceProvider)
+                // The PreviewView stays laid out, so the ViewPort below is identical when hidden.
+                previewHidden = hidePreview
+                usePreview.setSurfaceProvider(if (previewHidden) discardSurface else preview.surfaceProvider)
+                overlay.visibility = if (previewHidden) View.INVISIBLE else View.VISIBLE
                 val analysisBuilder = ImageAnalysis.Builder().setTargetRotation(rotation).setResolutionSelector(resolution)
                     .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
@@ -289,7 +307,7 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
             "crop" to "${crop.width()}x${crop.height()}", "modelInput" to "${rotated.width}x${rotated.height}",
             "rotation" to image.imageInfo.rotationDegrees, "format" to "RGBA_8888", "camera" to if (mirrored) "front" else "back",
             "bitmapReuse" to (original === rgbaBuffer.bitmap), "rowStride" to image.planes.firstOrNull()?.rowStride,
-            "workerPriority" to Process.getThreadPriority(Process.myTid()))
+            "workerPriority" to Process.getThreadPriority(Process.myTid()), "previewHidden" to previewHidden)
         try {
             val ms = maxOf(lastMs+1,image.imageInfo.timestamp/1_000_000)
             val interrupted = lastMs >= 0 && ms-lastMs > 500
@@ -314,7 +332,7 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
             lap("adaptWindow")
             val faceDraw = LandmarkAdapter.face.filter { it < fp.size }.map { fp[it] }
             val imageWidth = rotated.width; val imageHeight = rotated.height
-            main.post { if (generation.get() == id && !disposed) overlay.update(faceDraw,pp,hh,imageWidth,imageHeight,mirrored,sensorNs) }
+            if (!previewHidden) main.post { if (generation.get() == id && !disposed) overlay.update(faceDraw,pp,hh,imageWidth,imageHeight,mirrored,sensorNs) }
             // UI status at ~5 Hz; tracking-state changes and interruptions are sent at once.
             val now = SystemClock.elapsedRealtime()
             if (interrupted || observation.tracking != lastTracking || now-lastTrackingEvent >= 200) {

@@ -18,6 +18,7 @@ class MainActivity : FlutterActivity() {
     private var modelFolder = "behavior"
     private var trackingDelegate = "CPU"
     private var lockFps30 = true
+    private var hidePreview = false
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
@@ -28,7 +29,7 @@ class MainActivity : FlutterActivity() {
         flutterEngine.platformViewsController.registry.registerViewFactory("calm/camera",object : PlatformViewFactory(StandardMessageCodec.INSTANCE) {
             override fun create(context: Context, viewId: Int, args: Any?): PlatformView {
                 panel?.stop()
-                return CameraPanel(this@MainActivity) { sink?.success(it) }.also { panel = it; it.diagnosticsEnabled = diagnostics; it.modelFolder = modelFolder; it.requestedDelegate = trackingDelegate; it.lockFps30 = lockFps30 }
+                return CameraPanel(this@MainActivity) { sink?.success(it) }.also { panel = it; it.diagnosticsEnabled = diagnostics; it.modelFolder = modelFolder; it.requestedDelegate = trackingDelegate; it.lockFps30 = lockFps30; it.hidePreview = hidePreview }
             }
         })
         MethodChannel(messenger,"calm/detection").setMethodCallHandler { call,result ->
@@ -39,6 +40,7 @@ class MainActivity : FlutterActivity() {
                 // "CPU", "GPU", or a comma list of tasks for GPU ("face,pose,hands").
                 "delegate" -> { trackingDelegate = (call.arguments as? String)?.ifBlank { "CPU" } ?: "CPU"; panel?.requestedDelegate = trackingDelegate; result.success(null) }
                 "fpsLock" -> { lockFps30 = call.arguments == true; panel?.lockFps30 = lockFps30; result.success(null) }
+                "hidePreview" -> { hidePreview = call.arguments == true; panel?.hidePreview = hidePreview; result.success(null) }
                 "diagnostics" -> { diagnostics = call.arguments == true; panel?.diagnosticsEnabled = diagnostics; result.success(null) }
                 else -> result.notImplemented()
             }
