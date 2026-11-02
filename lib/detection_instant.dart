@@ -45,48 +45,53 @@ class DetectionInstantPage extends StatelessWidget {
 
           // Main Content
           SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(
-                    height: 120,
-                  ), // Push down to center visually below the cloud humps
-                  Text(
-                    'Behavior detected',
-                    style: AppTypography.headlineMedium.copyWith(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.bold,
+            child: Column(
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 40.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Spacer(flex: 3), // Push content down a bit, below the "cloud"
+                        Text(
+                          'Behavior detected',
+                          style: AppTypography.headlineMedium.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.bold
+                          ),
+                        ),
+                        Text(
+                          symptom,
+                          style: AppTypography.displaySmall.copyWith(
+                            color: AppColors.primary, // Pink text
+                            fontWeight: FontWeight.bold,
+                            height: 1.1,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          'The behavioral model flagged the last few seconds.'
+                          '${score == null ? '' : ' Model score: ${(score * 100).toStringAsFixed(1)}%.'}'
+                          ' This score is not a diagnosis or a measure of anxiety severity.',
+                          style: AppTypography.bodyLarge.copyWith(
+                            color: AppColors.textPrimary,
+                            height: 1.5,
+                          ),
+                        ),
+                        const Spacer(flex: 4),
+                      ],
                     ),
                   ),
-                  Text(
-                    symptom,
-                    style: AppTypography.displaySmall.copyWith(
-                      color: AppColors.primary, // Pink text
-                      fontWeight: FontWeight.bold,
-                      height: 1.1,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'The behavioral model flagged this four-second window.'
-                    '${score == null ? '' : ' Model score: ${(score * 100).toStringAsFixed(1)}%.'}'
-                    ' This score is not a diagnosis or a measure of anxiety severity.',
-                    style: AppTypography.bodyLarge.copyWith(
-                      color: AppColors.textPrimary,
-                      height: 1.5,
-                    ),
-                  ),
-                  const Spacer(),
-
-                  // Bottom Buttons
-                  Row(
+                ),
+                // Bottom Buttons outside of the expanded column so they stay consistently at the bottom
+                Padding(
+                  padding: const EdgeInsets.only(left: 24.0, right: 24.0, bottom: 40.0),
+                  child: Row(
                     children: [
                       ElevatedButton(
                         onPressed: () {
-                          // Note: /info route is now handled through /symptomList?
                           // For now, we will simply redirect to symptom list and let the user open the dropdown.
                           Navigator.pushReplacementNamed(
                             context,
@@ -99,10 +104,7 @@ class DetectionInstantPage extends StatelessWidget {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(30),
                           ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 28,
-                            vertical: 16,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                         ),
                         child: Text(
                           'More Info',
@@ -111,7 +113,7 @@ class DetectionInstantPage extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () => Navigator.pushReplacementNamed(
@@ -128,17 +130,17 @@ class DetectionInstantPage extends StatelessWidget {
                           ),
                           child: Text(
                             'Coping Techniques',
-                            style: AppTypography.titleMedium.copyWith(
-                              color: Colors.white,
-                            ),
+                            style: AppTypography.titleMedium.copyWith(color: Colors.white),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 40),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],

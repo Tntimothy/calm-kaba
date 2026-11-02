@@ -6,7 +6,6 @@ import 'services/log_service.dart';
 import 'services/navigation_observer.dart';
 import 'components/camera_preview.dart';
 import 'components/diagnostics_panel.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 class HomePage extends StatefulWidget {
   final bool active;
@@ -189,7 +188,7 @@ class _HomePageState extends State<HomePage>
           _stopDetection();
         },
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: isSelected ? AppColors.primary : Colors.transparent,
             borderRadius: BorderRadius.circular(30),
@@ -197,8 +196,9 @@ class _HomePageState extends State<HomePage>
           alignment: Alignment.center,
           child: Text(
             title,
-            style: AppTypography.titleSmall.copyWith(
+            style: AppTypography.bodyMedium.copyWith(
               color: isSelected ? Colors.white : AppColors.primary,
+              fontWeight: isSelected ? FontWeight.w900 : FontWeight.normal,
             ),
           ),
         ),
@@ -295,8 +295,8 @@ class _HomePageState extends State<HomePage>
                             SizedBox(
                               width: 140,
                               height: 140,
-                              child: SvgPicture.asset(
-                                'assets/images/finalFish.svg',
+                              child: Image.asset(
+                                'assets/images/fishLogo.png',
                                 fit: BoxFit.contain,
                               ),
                             ),
@@ -700,7 +700,7 @@ class _HomePageState extends State<HomePage>
                       mainAxisAlignment: MainAxisAlignment.start,
                       children: [
                         Text(
-                          'Switch to Simple Mode',
+                          'Switch to Light Mode',
                           style: AppTypography.titleSmall.copyWith(
                             color: AppColors.primary,
                           ),

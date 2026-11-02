@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'theme/design_system.dart';
 import 'services/log_service.dart';
 
@@ -61,13 +60,12 @@ class _DetectionLogPageState extends State<DetectionLogPage> {
         padding: const EdgeInsets.all(20.0),
         child: Row(
           children: [
-            // Pufferfish SVG
             Container(
               alignment: Alignment.center,
-              width: 120, // Increased size to fill space better
-              height: 120,
-              child: SvgPicture.asset(
-                'assets/images/pufferfishFinal.svg',
+              width: 140, // Increased size to fill space better
+              height: 140,
+              child: Image.asset(
+                'assets/images/headerFish.png',
                 fit: BoxFit.contain,
               ),
             ),
@@ -140,7 +138,9 @@ class _DetectionLogPageState extends State<DetectionLogPage> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).brightness == Brightness.light
+          ? AppColors.tertiary
+          : Colors.white,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -162,13 +162,17 @@ class _DetectionLogPageState extends State<DetectionLogPage> {
               children: [
                 Text(
                   log.symptom,
-                  style: AppTypography.titleMedium.copyWith(color: AppColors.primary),
+                  style: AppTypography.titleMedium.copyWith(color: Theme.of(context).brightness == Brightness.light
+                      ? AppColors.tertiary
+                      : Colors.white,),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   dateStr,
                   style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.primary.withValues(alpha: 0.7),
+                      color: Theme.of(context).brightness == Brightness.light
+                          ? AppColors.tertiary
+                          : Colors.white,
                   ),
                 ),
               ],
