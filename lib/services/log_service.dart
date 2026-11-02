@@ -25,6 +25,36 @@ String fileStamp(DateTime t) => t
     .replaceAll(':', '-')
     .replaceAll('T', '_');
 
+typedef Reflection = ({DateTime time, List<String> answers});
+
+/// Reframing entries the user chose to keep, stored only on this phone.
+class Reflections {
+  static const _key = 'reframing_entries';
+
+  /// Newest first.
+  static Future<List<Reflection>> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    return [
+      for (final raw in (prefs.getStringList(_key) ?? []).reversed)
+        () {
+          final map = jsonDecode(raw) as Map<String, dynamic>;
+          return (
+            time: DateTime.parse(map['time'] as String),
+            answers: List<String>.from(map['answers'] as List),
+          );
+        }(),
+    ];
+  }
+
+  static Future<void> add(DateTime time, List<String> answers) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_key, [
+      ...?prefs.getStringList(_key),
+      jsonEncode({'time': time.toIso8601String(), 'answers': answers}),
+    ]);
+  }
+}
+
 class LogEntry {
   final String symptom;
   final DateTime timestamp;

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../services/log_service.dart';
 import '../theme/design_system.dart';
 
@@ -24,11 +25,21 @@ class CognitiveReframingPage extends StatefulWidget {
 
 class _CognitiveReframingPageState extends State<CognitiveReframingPage> {
   bool _isSubmitted = false;
-  String? _savedTo;
+  String _doneMessage = '';
+  List<Reflection> _past = [];
+  bool _showAllPast = false;
   final _answers = List.generate(
     _prompts.length,
     (_) => TextEditingController(),
   );
+
+  @override
+  void initState() {
+    super.initState();
+    Reflections.load().then((past) {
+      if (mounted) setState(() => _past = past);
+    });
+  }
 
   @override
   void dispose() {
@@ -38,35 +49,201 @@ class _CognitiveReframingPageState extends State<CognitiveReframingPage> {
     super.dispose();
   }
 
-  /// Saves the entry as a .txt file on this phone only, then shows completion.
+  /// Asks whether to keep the entry; kept entries go to this phone only.
   Future<void> _submit() async {
-    String? savedTo;
-    if (_answers.any((c) => c.text.trim().isNotEmpty)) {
-      final now = DateTime.now();
-      final text = StringBuffer('Reframing Journal - $now\n');
-      for (var i = 0; i < _prompts.length; i++) {
-        text.writeln('\n${_prompts[i].$1}\n${_answers[i].text.trim()}');
-      }
-      try {
-        savedTo = await saveTextFile(
-          'reframing_${fileStamp(now)}.txt',
-          text.toString(),
-        );
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not save your entry: $e')),
-          );
+    final answers = [for (final c in _answers) c.text.trim()];
+    var message = 'Nothing was written, so nothing was saved.';
+    if (answers.any((a) => a.isNotEmpty)) {
+      final keep = await _askChoice(
+        'Keep this reflection?',
+        'You can look back on it later at the bottom of this page.',
+        'Let it go',
+        'Keep it',
+      );
+      if (keep == null) return; // Dismissed: keep writing.
+      if (!keep) {
+        message = 'You let this one go. Nothing was saved.';
+      } else {
+        final now = DateTime.now();
+        final text = StringBuffer('Reframing Journal - $now\n');
+        for (var i = 0; i < _prompts.length; i++) {
+          text.writeln('\n${_prompts[i].$1}\n${answers[i]}');
         }
-        return;
+        try {
+          final path = await saveTextFile(
+            'reframing_${fileStamp(now)}.txt',
+            text.toString(),
+          );
+          await Reflections.add(now, answers);
+          message =
+              'Kept only on this phone. Find it under Past reflections, '
+              'or as a text file: $path';
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Could not keep your entry: $e')),
+            );
+          }
+          return;
+        }
       }
     }
     if (mounted) {
       setState(() {
-        _savedTo = savedTo;
+        _doneMessage = message;
         _isSubmitted = true;
       });
     }
+  }
+
+  /// The past entry's balanced thought if they wrote one, else what they wrote first.
+  static String _headline(Reflection r) => r.answers.last.isNotEmpty
+      ? r.answers.last
+      : r.answers.firstWhere((a) => a.isNotEmpty, orElse: () => '');
+
+  Widget _buildPastReflections(bool isLightMode) {
+    if (_past.isEmpty) return const SizedBox.shrink();
+    final shown = _showAllPast ? _past : _past.take(3);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Past reflections',
+              style: AppTypography.titleLarge.copyWith(
+                color: AppColors.primary,
+              ),
+            ),
+            if (_past.length > 3)
+              TextButton(
+                onPressed: () => setState(() => _showAllPast = !_showAllPast),
+                child: Text(
+                  _showAllPast ? 'Show less' : 'View all',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        for (final r in shown)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Material(
+              color: isLightMode ? Colors.white : AppColors.pastelPetal,
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => _showReflection(r),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isLightMode
+                              ? AppColors.pastelPetal
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          DateFormat('d MMM').format(r.time).toUpperCase(),
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _headline(r),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.titleMedium.copyWith(
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            Text(
+                              DateFormat('h:mm a').format(r.time),
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  void _showReflection(Reflection r) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).brightness == Brightness.light
+            ? Theme.of(
+                context,
+              ).extension<AppColorsExtension>()!.secondaryBackground
+            : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(
+          DateFormat('MMM d, y · h:mm a').format(r.time),
+          style: AppTypography.titleLarge.copyWith(color: AppColors.primary),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < _prompts.length; i++)
+                if (r.answers[i].isNotEmpty) ...[
+                  Text(
+                    _prompts[i].$1,
+                    style: AppTypography.titleMedium.copyWith(
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    r.answers[i],
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              'Close',
+              style: AppTypography.titleMedium.copyWith(
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildJournalField(
@@ -186,7 +363,7 @@ class _CognitiveReframingPageState extends State<CognitiveReframingPage> {
               const SizedBox(height: 16),
               Text(
                 'You took a great step in challenging negative thoughts. '
-                '${_savedTo == null ? 'Nothing was written, so nothing was saved.' : 'Your entry was saved only on this phone: $_savedTo'}',
+                '$_doneMessage',
                 style: AppTypography.bodyMedium.copyWith(
                   color: AppColors.textPrimary,
                 ),
@@ -219,13 +396,9 @@ class _CognitiveReframingPageState extends State<CognitiveReframingPage> {
     );
   }
 
-  Future<bool> _onWillPop() async {
-    // If they have already finished let them exit.
-    if (_isSubmitted) {
-      return true;
-    }
-
-    final shouldPop = await showDialog<bool>(
+  /// Two-button dialog; null when dismissed.
+  Future<bool?> _askChoice(String title, String body, String no, String yes) {
+    return showDialog<bool>(
       context: context,
       builder: (context) {
         final isLightMode = Theme.of(context).brightness == Brightness.light;
@@ -239,11 +412,11 @@ class _CognitiveReframingPageState extends State<CognitiveReframingPage> {
             borderRadius: BorderRadius.circular(24),
           ),
           title: Text(
-            'Exit Session?',
+            title,
             style: AppTypography.titleLarge.copyWith(color: AppColors.primary),
           ),
           content: Text(
-            'Are you sure you want to exit before completing Cognitive Reframing?',
+            body,
             style: AppTypography.bodyMedium.copyWith(
               color: isLightMode ? AppColors.textPrimary : AppColors.secondary,
             ),
@@ -252,7 +425,7 @@ class _CognitiveReframingPageState extends State<CognitiveReframingPage> {
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
               child: Text(
-                'Cancel',
+                no,
                 style: AppTypography.titleMedium.copyWith(
                   color: AppColors.primary,
                 ),
@@ -261,7 +434,7 @@ class _CognitiveReframingPageState extends State<CognitiveReframingPage> {
             TextButton(
               onPressed: () => Navigator.of(context).pop(true),
               child: Text(
-                'Exit',
+                yes,
                 style: AppTypography.titleMedium.copyWith(
                   color: AppColors.pinkCarnation,
                 ),
@@ -271,8 +444,20 @@ class _CognitiveReframingPageState extends State<CognitiveReframingPage> {
         );
       },
     );
+  }
 
-    return shouldPop ?? false;
+  Future<bool> _onWillPop() async {
+    // If they have already finished let them exit.
+    if (_isSubmitted) {
+      return true;
+    }
+    return await _askChoice(
+          'Exit Session?',
+          'Are you sure you want to exit before completing Cognitive Reframing?',
+          'Cancel',
+          'Exit',
+        ) ??
+        false;
   }
 
   @override
@@ -353,13 +538,16 @@ class _CognitiveReframingPageState extends State<CognitiveReframingPage> {
                                 ),
                               ),
                               child: Text(
-                                'Reflect & Save',
+                                'Finish',
                                 style: AppTypography.titleLarge.copyWith(
                                   color: Colors.white,
                                 ),
                               ),
                             ),
                           ),
+                          const SizedBox(height: 32),
+                          // Below the new entry so past thoughts never greet someone mid-worry.
+                          _buildPastReflections(isLightMode),
                           const SizedBox(height: 24),
                         ],
                       ),

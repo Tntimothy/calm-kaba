@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:thesis_anxiety/homepage.dart';
+import 'package:thesis_anxiety/coping_techniques/cognitive_reframing.dart';
 import 'package:thesis_anxiety/detection_instant.dart';
 import 'package:thesis_anxiety/services/detection_service.dart';
 import 'package:thesis_anxiety/services/log_service.dart';
@@ -185,5 +186,50 @@ void main() {
     await tester.pump();
     await tester.binding.setSurfaceSize(null);
     debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('kept reflection is listed under past reflections', (
+    tester,
+  ) async {
+    GoogleFonts.config.allowRuntimeFetching = false;
+    SharedPreferences.setMockInitialValues({});
+    const channel = MethodChannel('calm/detection');
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(
+      channel,
+      (call) async => '/Download/Calm Kaba/${call.arguments['name']}',
+    );
+    await tester.binding.setSurfaceSize(const Size(430, 1600));
+    Future<void> open() => tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: const CognitiveReframingPage(),
+      ),
+    );
+
+    await open();
+    await tester.pumpAndSettle();
+    expect(find.text('Past reflections'), findsNothing);
+    await tester.enterText(find.byType(TextField).at(0), 'I will fail');
+    await tester.enterText(find.byType(TextField).at(3), 'I prepared well');
+    await tester.tap(find.text('Finish'));
+    await tester.pumpAndSettle();
+    expect(find.text('Keep this reflection?'), findsOneWidget);
+    await tester.tap(find.text('Keep it'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Kept only on this phone'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await open();
+    await tester.pumpAndSettle();
+    expect(find.text('Past reflections'), findsOneWidget);
+    // The balanced thought leads, not the worry.
+    expect(find.text('I prepared well'), findsOneWidget);
+    await tester.tap(find.text('I prepared well'));
+    await tester.pumpAndSettle();
+    expect(find.text('I will fail'), findsOneWidget);
+
+    messenger.setMockMethodCallHandler(channel, null);
+    await tester.binding.setSurfaceSize(null);
   });
 }
