@@ -399,6 +399,13 @@ class _HomePageState extends State<HomePage>
                     color: AppColors.textPrimary,
                   ),
                 ),
+                // Timing note (ScoreSmoother); delete this Text to remove it.
+                Text(
+                  'The first result appears after about 7 seconds.',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
                 Row(
                   children: [
                     Expanded(

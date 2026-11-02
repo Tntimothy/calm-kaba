@@ -130,9 +130,7 @@ class _DetectionLogPageState extends State<DetectionLogPage> {
   }
 
   Widget _buildLogItem(LogEntry log) {
-    // Standardizing to just time to match mockup ("10:31 PM")
-    // If you need dates too, consider DateFormat('MMM d, h:mm a')
-    final dateStr = DateFormat('h:mm a').format(log.timestamp.toLocal());
+    final dateStr = DateFormat('MMM d, h:mm a').format(log.timestamp.toLocal());
     
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
