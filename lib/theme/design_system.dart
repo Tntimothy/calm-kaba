@@ -175,6 +175,17 @@ class AppTheme {
     );
   }
 
+  // White-on-white when off otherwise: the default track uses the white surface.
+  static final _switchTheme = SwitchThemeData(
+    thumbColor: WidgetStateProperty.resolveWith(
+      (s) => s.contains(WidgetState.selected) ? Colors.white : AppColors.primary,
+    ),
+    trackColor: WidgetStateProperty.resolveWith(
+      (s) => s.contains(WidgetState.selected) ? AppColors.primary : Colors.white,
+    ),
+    trackOutlineColor: WidgetStateProperty.all(AppColors.primary),
+  );
+
   // Dark Theme represents the ORIGINAL layout with vibrant green backgrounds
   static ThemeData get darkTheme {
     return ThemeData(
@@ -190,6 +201,7 @@ class AppTheme {
         surface: Color(0xFFFFFFFF), // secondaryBackground
       ),
       textTheme: _buildTextTheme(),
+      switchTheme: _switchTheme,
       extensions: const <ThemeExtension<dynamic>>[
         AppColorsExtension(
           alternate: Color(0xFFC5FF7A),
@@ -215,6 +227,7 @@ class AppTheme {
         surface: Color(0xFFF0F0F0), // secondaryBackground
       ),
       textTheme: _buildTextTheme(),
+      switchTheme: _switchTheme,
       extensions: const <ThemeExtension<dynamic>>[
         AppColorsExtension(
           alternate: Color(0xFFFFFFFF),

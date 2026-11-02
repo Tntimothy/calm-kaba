@@ -136,7 +136,10 @@ class _DetectionLogPageState extends State<DetectionLogPage> {
         ? Colors.white
         : AppColors.textPrimary;
 
-    return Container(
+    // Tapping an entry opens that symptom's information.
+    return GestureDetector(
+      onTap: () => Navigator.pushNamed(context, '/symptomList', arguments: log.symptom),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -175,6 +178,7 @@ class _DetectionLogPageState extends State<DetectionLogPage> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

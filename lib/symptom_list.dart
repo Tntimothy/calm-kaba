@@ -16,11 +16,24 @@ class _SymptomListPageState extends State<SymptomListPage> {
   final TextEditingController _searchController = TextEditingController();
   List<String> _filteredSymptomKeys = [];
 
+  /// Symptom opened from a log entry or a detection result, shown expanded.
+  String? _opened;
+
   @override
   void initState() {
     super.initState();
     _filteredSymptomKeys = SymptomData.data.keys.toList();
     _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final symptom = ModalRoute.of(context)?.settings.arguments;
+    if (_opened == null && symptom is String && SymptomData.data.containsKey(symptom)) {
+      _opened = symptom;
+      _searchController.text = symptom;
+    }
   }
 
   @override
@@ -82,6 +95,7 @@ class _SymptomListPageState extends State<SymptomListPage> {
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
+          initiallyExpanded: title == _opened,
           iconColor: AppColors.primary,
           collapsedIconColor: AppColors.primary,
           tilePadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),

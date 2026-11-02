@@ -170,7 +170,7 @@ class _BreathingRegulationPageState extends State<BreathingRegulationPage> with 
             Text(
               duration, 
               style: AppTypography.titleMedium.copyWith( // Reduced from titleLarge
-                color: isActive ? (isLightMode ? AppColors.arden : AppColors.teaGreen) : (isLightMode ? AppColors.tertiary : AppColors.secondary),
+                color: isActive ? (isLightMode ? AppColors.arden : AppColors.teaGreen) : (isLightMode ? AppColors.primary : AppColors.secondary),
                 fontWeight: FontWeight.bold,
               ),
             ),
