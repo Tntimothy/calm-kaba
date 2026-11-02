@@ -26,8 +26,50 @@ class BehaviorResult {
       threshold = (map['threshold'] as num).toDouble(),
       reason = map['reason'] as String? ?? '',
       warning = map['warning'] as String? ?? '';
+  BehaviorResult._smoothed(BehaviorResult raw, this.score, this.reason)
+    : symptom = raw.symptom,
+      threshold = raw.threshold,
+      warning = raw.warning;
   String get label => symptomLabels[symptom] ?? symptom;
   bool get detected => score != null && score!.isFinite && score! >= threshold;
+}
+
+/// Decisions use the mean of the last three consecutive valid window scores
+/// (the lead's "smooth3"), so landmarks settle and one noisy window cannot
+/// decide alone. The first decision comes about 9 s into a scan.
+class ScoreSmoother {
+  final Map<String, List<double>> _recent = {};
+  double? _lastEnd;
+  void reset() {
+    _recent.clear();
+    _lastEnd = null;
+  }
+
+  List<BehaviorResult> apply(List<BehaviorResult> results, double end) {
+    // Windows advance by 2 s; a jump means the native window was reset.
+    if (_lastEnd != null && (end - _lastEnd! - 2).abs() > .5) _recent.clear();
+    _lastEnd = end;
+    return [
+      for (final raw in results)
+        () {
+          final recent = _recent.putIfAbsent(raw.symptom, () => []);
+          if (raw.score == null) {
+            recent.clear();
+            return raw;
+          }
+          recent.add(raw.score!);
+          if (recent.length > 3) recent.removeAt(0);
+          if (recent.length < 3) {
+            return BehaviorResult._smoothed(raw, null, 'Settling, hold still');
+          }
+          return BehaviorResult._smoothed(
+            raw,
+            recent.reduce((a, b) => a + b) / 3,
+            raw.reason,
+          );
+        }(),
+    ];
+  }
 }
 
 /// One history event per sustained detection. Rearm after two valid negative
@@ -69,6 +111,7 @@ class DetectionService {
   final _updates = StreamController<Map<dynamic, dynamic>>.broadcast();
   final _detections = StreamController<BehaviorResult>.broadcast();
   final _eventRule = DetectionEventRule();
+  final _smoother = ScoreSmoother();
 
   /// Developer diagnostics bypass [updates] so they never rebuild the page.
   final diagnostics = ValueNotifier<Map<dynamic, dynamic>?>(null);
@@ -90,6 +133,7 @@ class DetectionService {
     currentMode = mode;
     results = [];
     _eventRule.reset();
+    _smoother.reset();
     _subscription ??= _events.receiveBroadcastStream().listen(
       (dynamic value) {
         if (_disposed) return;
@@ -115,10 +159,13 @@ class DetectionService {
           _running = false;
         }
         if (packet['type'] == 'prediction') {
-          results = (packet['results'] as List)
-              .map((e) => BehaviorResult.fromMap(e as Map))
-              .toList();
           final time = (packet['end'] as num).toDouble();
+          results = _smoother.apply(
+            (packet['results'] as List)
+                .map((e) => BehaviorResult.fromMap(e as Map))
+                .toList(),
+            time,
+          );
           if (currentMode == DetectionMode.instant) {
             final detected = results.where((r) => r.detected).toList()
               ..sort((a, b) => b.score!.compareTo(a.score!));

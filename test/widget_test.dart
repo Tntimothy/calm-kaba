@@ -37,6 +37,18 @@ void main() {
       expect(rule.accept(result(.9), 117), isFalse);
     },
   );
+  test('decisions average three consecutive windows and restart on a gap', () {
+    final smoother = ScoreSmoother();
+    double? score(double? raw, double end) =>
+        smoother.apply([result(raw)], end).single.score;
+    expect(score(.9, 5), isNull);
+    expect(score(.9, 7), isNull);
+    expect(score(.3, 9), closeTo(.7, 1e-9));
+    expect(score(.6, 11), closeTo(.6, 1e-9));
+    expect(score(.9, 20), isNull);
+    expect(score(null, 22), isNull);
+    expect(score(.9, 24), isNull);
+  });
   test(
     'simultaneous detections persist without overwriting each other',
     () async {
@@ -79,12 +91,14 @@ void main() {
       final service = DetectionService();
       final detected = <BehaviorResult>[];
       final subscription = service.detectionStream.listen(detected.add);
+      var end = 3.0;
       Future<void> packet(double? score) async {
+        end += 2;
         await messenger.handlePlatformMessage(
           'calm/detection/events',
-          const StandardMethodCodec().encodeSuccessEnvelope({
+          StandardMethodCodec().encodeSuccessEnvelope({
             'type': 'prediction',
-            'end': 5.0,
+            'end': end,
             'results': [
               {'symptom': 'fidgeting', 'score': score, 'threshold': .5},
             ],
@@ -97,9 +111,11 @@ void main() {
       await service.startDetection();
       await packet(null);
       await packet(.49);
-      expect(detected, isEmpty);
       await packet(.5);
+      expect(detected, isEmpty);
+      await packet(.52);
       expect(detected.single.label, 'Fidgeting');
+      expect(detected.single.score, closeTo(.5033, 1e-3));
       expect(stopCalls, 1);
       await packet(.9);
       expect(detected.length, 1);
