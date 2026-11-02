@@ -38,6 +38,7 @@ class BehaviorResult {
 /// (the lead's "smooth3"), so landmarks settle and one noisy window cannot
 /// decide alone. The first decision comes about 9 s into a scan.
 class ScoreSmoother {
+  static const settling = 'Settling, hold still';
   final Map<String, List<double>> _recent = {};
   double? _lastEnd;
   void reset() {
@@ -60,7 +61,7 @@ class ScoreSmoother {
           recent.add(raw.score!);
           if (recent.length > 3) recent.removeAt(0);
           if (recent.length < 3) {
-            return BehaviorResult._smoothed(raw, null, 'Settling, hold still');
+            return BehaviorResult._smoothed(raw, null, settling);
           }
           return BehaviorResult._smoothed(
             raw,

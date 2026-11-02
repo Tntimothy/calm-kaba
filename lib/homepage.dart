@@ -75,6 +75,8 @@ class _HomePageState extends State<HomePage>
             final count = _results.where((r) => r.detected).length;
             _status = count > 0
                 ? '$count behavioral model detection${count == 1 ? '' : 's'} in this window'
+                : _results.any((r) => r.reason == ScoreSmoother.settling)
+                ? 'Settling, hold still for a few more seconds'
                 : _results.any((r) => r.score != null)
                 ? 'No above-threshold behavioral detections in this window'
                 : 'Tracking unavailable. Adjust your position using the guidance below.';

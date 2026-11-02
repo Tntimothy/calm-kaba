@@ -38,7 +38,9 @@ class ModelBank(val folder: String = "behavior", read: (String) -> ByteArray) : 
     }
     fun predict(records: List<Observation>, start: Double, timing: (String, Long) -> Unit = { _, _ -> }): Map<String, Any> {
         val inside = records.filter { it.time >= start && it.time < start+4 }
-        val fps = if (inside.size > 1) (inside.size-1)/(inside.last().time-inside.first().time) else 0.0
+        fun rate(frames: List<Observation>) = if (frames.size > 1) (frames.size-1)/(frames.last().time-frames.first().time) else 0.0
+        val fps = rate(inside)
+        val handFps = rate(inside.filter { it.handsRan })
         val maxGap = inside.zipWithNext { a,b -> b.time-a.time }.maxOrNull() ?: Double.POSITIVE_INFINITY
         val coverage = LandmarkAdapter.trackKeys.associateWith { key ->
             val n = inside.attempted(key); if (n == 0) 0.0 else inside.count { it.tracking[key] == true }.toDouble()/n }
@@ -48,7 +50,7 @@ class ModelBank(val folder: String = "behavior", read: (String) -> ByteArray) : 
         val extracted = System.nanoTime(); timing("features",extracted-begin)
         val results = models.map { model ->
             val reason = if (maxGap > .5) "Tracking was interrupted; collect a fresh window" else trackingReason(model.symptom,coverage,fps)
-            val warning = if (model.symptom in listOf("hand_tremor","knee_tremor") && fps < 20 && reason.isEmpty()) "Low FPS (${String.format(java.util.Locale.US,"%.1f",fps)}); tremor score may be unreliable" else ""
+            val warning = if (model.symptom in listOf("hand_tremor","knee_tremor") && handFps < 20 && reason.isEmpty()) "Low FPS (${String.format(java.util.Locale.US,"%.1f",handFps)}); tremor score may be unreliable" else ""
             val score = if (reason.isEmpty()) NativeLgbm.predict(model.handle,DoubleArray(model.indices.size) { features[model.indices[it]] }) else null
             mapOf("symptom" to model.symptom, "score" to score, "threshold" to model.threshold,
                 "reason" to reason, "warning" to warning)
