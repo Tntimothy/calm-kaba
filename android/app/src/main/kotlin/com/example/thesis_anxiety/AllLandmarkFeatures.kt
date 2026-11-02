@@ -55,9 +55,9 @@ object AllLandmarkFeatures {
     private val sines = Array(60) { k -> DoubleArray(T) { sin(2*PI*(k+1)*it/T) } }
 
     /** common.interp_part: linear, endpoint-clamped; null when the part's first channel is too sparse. */
-    private fun interpolate(inside: List<Observation>, start: Double, first: Int, count: Int): Array<DoubleArray>? {
+    private fun interpolate(inside: List<Observation>, start: Double, first: Int, count: Int, attempted: Int): Array<DoubleArray>? {
         val ok = inside.indices.filter { inside[it].coords?.get(first)?.isNaN() == false }
-        if (inside.size < 2 || ok.size < maxOf(2.0, .5*inside.size)) return null
+        if (inside.size < 2 || ok.size < maxOf(2.0, .5*attempted)) return null
         val tv = DoubleArray(ok.size) { inside[ok[it]].time }
         return Array(count) { c ->
             val values = DoubleArray(ok.size) { inside[ok[it]].coords!![first+c].toDouble() }
@@ -93,7 +93,7 @@ object AllLandmarkFeatures {
     fun extract(inside: List<Observation>, start: Double): DoubleArray {
         val stats = arrayOfNulls<Array<DoubleArray?>>(parts.size)
         for ((p, part) in parts.withIndex()) {
-            val w = interpolate(inside, start, part.second, part.third)
+            val w = interpolate(inside, start, part.second, part.third, inside.attempted(part.first))
             if (w != null && part.first == "pose") {
                 // Pose channels whose window-mean visibility is below 0.3 (or unknown) become missing.
                 for (j in 0 until 33) {

@@ -111,6 +111,14 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
     @Volatile var hidePreview = false
     /** Experiment, next scan: request 480x360 for analysis only (models were trained on 640x480 landmarks). */
     @Volatile var lowResAnalysis = false
+    /**
+     * Experiment, next scan: hand tracking on every 2nd frame so face and pose get more frames.
+     * Hand signals then come at half the processed rate, which weakens hand tremor.
+     */
+    @Volatile var handsHalfRate = false
+    @Volatile private var handsHalf = false
+    private var handFrame = 0
+    private var drawnHands = emptyList<List<Point3>>()
     @Volatile private var analysisRequested = ""
     /**
      * CameraX rotates RGBA upstream (setOutputImageRotationEnabled). Pixel-exact with the old
@@ -274,7 +282,7 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
                 val usePreview = previewBuilder.build()
                 // INVISIBLE keeps the PreviewView laid out, so the ViewPort below is identical when hidden;
                 // hiding it also stops it showing a stale frame from an earlier scan.
-                previewHidden = hidePreview
+                previewHidden = hidePreview; handsHalf = handsHalfRate
                 usePreview.setSurfaceProvider(if (previewHidden) discardSurface else preview.surfaceProvider)
                 (if (previewHidden) View.INVISIBLE else View.VISIBLE).let { preview.visibility = it; overlay.visibility = it }
                 // Same 4:3 aspect, so the shared ViewPort keeps the field of view and crop mapping.
@@ -349,7 +357,7 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
                 "rotation" to rotation, "format" to "RGBA_8888", "camera" to if (mirrored) "front" else "back",
                 "bitmapReuse" to (original === frame.pixels.bitmap), "rowStride" to rowStride,
                 "workerPriority" to Process.getThreadPriority(Process.myTid()), "previewHidden" to previewHidden,
-                "cameraXRotation" to cameraXRotation, "pipelined" to true)
+                "cameraXRotation" to cameraXRotation, "pipelined" to true, "handsHalfRate" to handsHalf)
             published = true
             if (frames.publish(frame)) trackerThread.execute { drain() }
         } finally { if (!published) frames.release(frame) }
@@ -370,8 +378,9 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
             fun <T> timed(name: String, block: () -> T): T { val t = System.nanoTime(); return block().also { diag.stage(name,System.nanoTime()-t) } }
             val ff = on(faceThread) { timed("face") { runOrFallback("face",{ face },{ createFace(false).also { face = it } }) { it.detectForVideo(image,ms) } } }.also { readers.add(it) }
             val pf = on(poseThread) { timed("pose") { runOrFallback("pose",{ pose },{ createPose(false).also { pose = it } }) { it.detectForVideo(image,ms) } } }.also { readers.add(it) }
-            val hf = on(handThread) { timed("hands") { runOrFallback("hands",{ hands },{ createHands(false).also { hands = it } }) { it.detectForVideo(image,ms) } } }.also { readers.add(it) }
-            val f = ff.get(); val p = pf.get(); val h = hf.get()
+            val hf = if (handsHalf && handFrame++ % 2 == 1) null
+                else on(handThread) { timed("hands") { runOrFallback("hands",{ hands },{ createHands(false).also { hands = it } }) { it.detectForVideo(image,ms) } } }.also { readers.add(it) }
+            val f = ff.get(); val p = pf.get(); val h = hf?.get()
             val done = System.nanoTime(); diag.stage("tracking",done-start)
             // One ADPF work cycle per frame, from its arrival or the previous frame's end, whichever is
             // later: overlapping preparation is counted once and idle camera waits are excluded.
@@ -387,14 +396,14 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
         }
     }
     /** Results thread: frames arrive in capture order, so the window is updated in timestamp order. */
-    private fun publishResults(id: Int, ms: Long, interrupted: Boolean, f: FaceLandmarkerResult, p: PoseLandmarkerResult, h: HandLandmarkerResult,
+    private fun publishResults(id: Int, ms: Long, interrupted: Boolean, f: FaceLandmarkerResult, p: PoseLandmarkerResult, h: HandLandmarkerResult?,
                                width: Int, height: Int, mirrored: Boolean, sensorNs: Long, arrivedNs: Long) {
         if (generation.get() != id || disposed) return
         try {
             val begin = System.nanoTime()
             val fp = f.faceLandmarks().firstOrNull()?.let { points(it) } ?: emptyList()
             val pp = p.landmarks().firstOrNull()?.let { points(it) } ?: emptyList()
-            val hh = h.landmarks().map { points(it) }
+            val hh = h?.landmarks()?.map { points(it) }
             val blend = f.faceBlendshapes().orElse(emptyList()).firstOrNull()?.associate { it.categoryName().trimStart('_') to it.score().toDouble() } ?: emptyMap()
             // Java exposes the column-major packed matrix. Python transposes that
             // storage into [row,column]; reconstruct row-major before adaptation.
@@ -405,12 +414,17 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
             val snapshot = window.push(observation)
             diag.stage("adaptWindow",System.nanoTime()-begin)
             val faceDraw = LandmarkAdapter.face.filter { it < fp.size }.map { fp[it] }
-            if (!previewHidden) main.post { if (generation.get() == id && !disposed) overlay.update(faceDraw,pp,hh,width,height,mirrored,sensorNs) }
+            if (hh != null) drawnHands = hh
+            val shownHands = drawnHands
+            if (!previewHidden) main.post { if (generation.get() == id && !disposed) overlay.update(faceDraw,pp,shownHands,width,height,mirrored,sensorNs) }
+            // A skipped hand frame keeps the last hand state instead of reporting the hands as lost.
+            val tracking = if (hh != null) observation.tracking
+                else observation.tracking+(lastTracking ?: emptyMap()).filterKeys { it.endsWith("_hand") }
             // UI status at ~5 Hz; tracking-state changes and interruptions are sent at once.
             val now = SystemClock.elapsedRealtime()
-            if (interrupted || observation.tracking != lastTracking || now-lastTrackingEvent >= 200) {
-                lastTracking = observation.tracking; lastTrackingEvent = now
-                event(id,mapOf("type" to "tracking", "tracking" to observation.tracking, "progress" to window.progress(), "interrupted" to interrupted))
+            if (interrupted || tracking != lastTracking || now-lastTrackingEvent >= 200) {
+                lastTracking = tracking; lastTrackingEvent = now
+                event(id,mapOf("type" to "tracking", "tracking" to tracking, "progress" to window.progress(), "interrupted" to interrupted))
             }
             if (snapshot != null) {
                 // The snapshot is a copy, so later frames cannot change this window.
@@ -421,7 +435,7 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
                 event(id,packet+mapOf("type" to "prediction"))
             }
             val end = System.nanoTime()
-            diag.stage("total",end-arrivedNs); diag.processed.tick(end); diag.tracking(observation.tracking,end)
+            diag.stage("total",end-arrivedNs); diag.processed.tick(end); diag.tracking(tracking,end)
             diag.age(sensorNs)?.let { diag.stage("captureToResult",it) }
         } catch (e: Throwable) { fail(id,e) }
     }
@@ -434,8 +448,8 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
     }
     /** Per-scan state is reset on the thread that owns it; this also waits for work queued there. */
     private fun resetScanState() {
-        on(trackerThread) { lastMs = -1; lastDone = 0 }.get()
-        on(resultsThread) { window.reset(); lastTracking = null }.get()
+        on(trackerThread) { lastMs = -1; lastDone = 0; handFrame = 0 }.get()
+        on(resultsThread) { window.reset(); lastTracking = null; drawnHands = emptyList() }.get()
     }
     private fun closeModels() {
         // Drop the pending frame; the tracked frame and its queued results finish before anything closes.

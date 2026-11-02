@@ -4,7 +4,10 @@ import kotlin.math.*
 
 /** coords/visibility carry every normalized landmark for the all-landmark features (see AllLandmarkFeatures). */
 class Observation(val time: Double, val row: Map<String, Double>, val tracking: Map<String, Boolean>,
-                  val coords: FloatArray? = null, val visibility: FloatArray? = null)
+                  val coords: FloatArray? = null, val visibility: FloatArray? = null, val handsRan: Boolean = true)
+/** Frames where the tracker behind [name] ran: hands may run on every 2nd frame only. */
+fun List<Observation>.attempted(name: String) =
+    if (name.startsWith("left_hand") || name.startsWith("right_hand") || name == "lh" || name == "rh") count { it.handsRan } else size
 data class Point3(val x: Double, val y: Double, val z: Double = 0.0,
                   val visibility: Double = 1.0, val presence: Double = 1.0)
 
@@ -45,7 +48,8 @@ object LandmarkAdapter {
         val shoulder = hypot(rx-lx, ry-ly); val torso = hypot((lx+rx)/2-ox, (ly+ry)/2-oy)
         return Frame(ox, oy, atan2(ry-ly, rx-lx), maxOf(shoulder, torso*.25, 1.0), w, h)
     }
-    fun adapt(time: Double, facePoints: List<Point3>, body: List<Point3>, handPoints: List<List<Point3>>,
+    /** [handPoints] is null when the hand tracker skipped this frame. */
+    fun adapt(time: Double, facePoints: List<Point3>, body: List<Point3>, handPoints: List<List<Point3>>?,
               blendshapes: Map<String, Double>, matrix: DoubleArray?, bs: List<String>, fm: List<String>,
               width: Int, height: Int): Observation {
         val row = mutableMapOf<String, Double>()
@@ -78,7 +82,7 @@ object LandmarkAdapter {
             tracking["reference"] = reference
             tracking["body"] = reference && visible(body[11]) && visible(body[12])
             tracking["knees"] = reference && visible(body[25]) && visible(body[26])
-            val hh = handPoints.take(2).filter { it.size >= 21 }
+            val hh = handPoints.orEmpty().take(2).filter { it.size >= 21 }
             if (reference && hh.isNotEmpty()) {
                 // Anatomical pose wrists, measured in pixels (matches the dataset in 97% of frames).
                 fun cost(hand: Int, slot: Int) = hypot((hh[hand][0].x-body[15+slot].x)*w, (hh[hand][0].y-body[15+slot].y)*h)
@@ -94,8 +98,9 @@ object LandmarkAdapter {
         }
         row["face_detected"] = if (facePoints.isNotEmpty()) 1.0 else 0.0
         row["pose_detected"] = if (body.isNotEmpty()) 1.0 else 0.0
-        for (side in listOf("left_hand", "right_hand")) row["${side}_detected"] = if (tracking[side] == true) 1.0 else 0.0
-        return Observation(time, row, tracking, coords, vis)
+        // A skipped frame leaves the hand flags missing, so their window means are not diluted.
+        if (handPoints != null) for (side in listOf("left_hand", "right_hand")) row["${side}_detected"] = if (tracking[side] == true) 1.0 else 0.0
+        return Observation(time, row, tracking, coords, vis, handPoints != null)
     }
 }
 
@@ -186,7 +191,7 @@ class FeatureEngine(val bs: List<String>, val fm: List<String>, val pooled: Bool
         val out = ArrayList<Double>(names.size)
         for (j in signalNames.indices) {
             val valid = inside.indices.filter { ss[it][j].isFinite() }
-            if (valid.size < 2 || valid.size < .5*inside.size) { repeat(10) { out.add(Double.NaN) }; continue }
+            if (valid.size < 2 || valid.size < .5*inside.attempted(signalNames[j])) { repeat(10) { out.add(Double.NaN) }; continue }
             var k = 0
             val grid = DoubleArray(120) { i ->
                 val t = start+i/30.0

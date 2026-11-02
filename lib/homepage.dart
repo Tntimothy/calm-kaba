@@ -30,6 +30,7 @@ class _HomePageState extends State<HomePage>
   final Set<String> _gpuTasks = {};
   bool _fpsLock = true;
   bool _hidePreview = false;
+  bool _handsHalfRate = false;
   bool _lowResAnalysis = false;
   double _hintTargetMs = 0;
   int _selectedTabIndex = 0;
@@ -493,6 +494,17 @@ class _HomePageState extends State<HomePage>
                       setState(() => _lowResAnalysis = value);
                       unawaited(
                         _detectionService.setOption('lowResAnalysis', value),
+                      );
+                    },
+                  ),
+                if (_developerMode)
+                  _developerSwitch(
+                    'Experiment: hand tracking every 2nd frame (weaker hand tremor; next scan)',
+                    _handsHalfRate,
+                    (value) {
+                      setState(() => _handsHalfRate = value);
+                      unawaited(
+                        _detectionService.setOption('handsHalfRate', value),
                       );
                     },
                   ),

@@ -167,4 +167,19 @@ class PipelineParityTest {
             for (r in results) assertNull((r as Map<*,*>)["score"])
         }
     }
+    @Test fun handsOnEveryOtherFrameKeepFullCoverageAndFeatures() {
+        val body = List(33) { Point3(.3+.01*it,.2+.02*it) }
+        bank().use { b ->
+            val records = List(122) { i ->
+                val hand = List(21) { j -> Point3(body[15].x+.005*j,body[15].y+.003*j+.002*kotlin.math.sin(i*1.7)) }
+                LandmarkAdapter.adapt(i/30.0,emptyList(),body,if (i%2 == 0) listOf(hand) else null,emptyMap(),null,
+                    b.engine.bs,b.engine.fm,480,640)
+            }
+            val features = b.engine.extract(records,0.0)
+            fun feature(name: String) = features[b.engine.names.indexOf(name).also { assertTrue(name,it >= 0) }]
+            assertTrue(feature("f_left_hand_0_x_std").isFinite())
+            assertEquals(1.0,feature("f_left_hand_detected_rate"),0.0)
+            assertEquals(1.0,((b.predict(records,0.0)["coverage"] as Map<*,*>)["left_hand"] as Double),0.0)
+        }
+    }
 }

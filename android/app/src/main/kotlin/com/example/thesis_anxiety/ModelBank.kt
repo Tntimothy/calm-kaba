@@ -40,7 +40,8 @@ class ModelBank(val folder: String = "behavior", read: (String) -> ByteArray) : 
         val inside = records.filter { it.time >= start && it.time < start+4 }
         val fps = if (inside.size > 1) (inside.size-1)/(inside.last().time-inside.first().time) else 0.0
         val maxGap = inside.zipWithNext { a,b -> b.time-a.time }.maxOrNull() ?: Double.POSITIVE_INFINITY
-        val coverage = LandmarkAdapter.trackKeys.associateWith { key -> if (inside.isEmpty()) 0.0 else inside.count { it.tracking[key] == true }.toDouble()/inside.size }
+        val coverage = LandmarkAdapter.trackKeys.associateWith { key ->
+            val n = inside.attempted(key); if (n == 0) 0.0 else inside.count { it.tracking[key] == true }.toDouble()/n }
         val begin = System.nanoTime()
         val features = engine.extract(records,start)
         require(features.none { it.isInfinite() })
