@@ -28,6 +28,8 @@ class _CognitiveReframingPageState extends State<CognitiveReframingPage> {
   String _doneMessage = '';
   List<Reflection> _past = [];
   bool _showAllPast = false;
+  DateTime? _editing; // Time of the kept entry loaded into the fields.
+  final _scroll = ScrollController();
   final _answers = List.generate(
     _prompts.length,
     (_) => TextEditingController(),
@@ -36,9 +38,7 @@ class _CognitiveReframingPageState extends State<CognitiveReframingPage> {
   @override
   void initState() {
     super.initState();
-    Reflections.load().then((past) {
-      if (mounted) setState(() => _past = past);
-    });
+    _loadPast();
   }
 
   @override
@@ -46,14 +46,61 @@ class _CognitiveReframingPageState extends State<CognitiveReframingPage> {
     for (final c in _answers) {
       c.dispose();
     }
+    _scroll.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadPast() async {
+    final past = await Reflections.load();
+    if (mounted) setState(() => _past = past);
+  }
+
+  void _startEdit(Reflection r) {
+    for (var i = 0; i < _answers.length; i++) {
+      _answers[i].text = r.answers[i];
+    }
+    setState(() => _editing = r.time);
+    _scroll.animateTo(
+      0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
+
+  void _cancelEdit() {
+    for (final c in _answers) {
+      c.clear();
+    }
+    setState(() => _editing = null);
+  }
+
+  Future<void> _delete(Reflection r) async {
+    final sure = await _askChoice(
+      'Delete this reflection?',
+      'It will be removed from this page. The text file in '
+          'Download/Calm Kaba stays unless you delete it there.',
+      'Cancel',
+      'Delete',
+    );
+    if (sure != true) return;
+    await Reflections.replace(r.time, null);
+    if (_editing == r.time) _cancelEdit();
+    await _loadPast();
   }
 
   /// Asks whether to keep the entry; kept entries go to this phone only.
   Future<void> _submit() async {
     final answers = [for (final c in _answers) c.text.trim()];
+    final written = answers.any((a) => a.isNotEmpty);
     var message = 'Nothing was written, so nothing was saved.';
-    if (answers.any((a) => a.isNotEmpty)) {
+    final editing = _editing;
+    if (editing != null) {
+      // Already kept, so no prompt. The .txt copy keeps the original text.
+      if (written) await Reflections.replace(editing, answers);
+      message = written
+          ? 'Your changes were kept on this phone.'
+          : 'Nothing was written, so nothing was changed.';
+    } else if (written) {
       final keep = await _askChoice(
         'Keep this reflection?',
         'You can look back on it later at the bottom of this page.',
@@ -209,38 +256,55 @@ class _CognitiveReframingPageState extends State<CognitiveReframingPage> {
         ),
         content: SingleChildScrollView(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (var i = 0; i < _prompts.length; i++)
-                if (r.answers[i].isNotEmpty) ...[
-                  Text(
-                    _prompts[i].$1,
-                    style: AppTypography.titleMedium.copyWith(
-                      color: AppColors.primary,
+                if (r.answers[i].isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.pastelPetal.withValues(alpha: .5),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _prompts[i].$1,
+                          style: AppTypography.titleMedium.copyWith(
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          r.answers[i],
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    r.answers[i],
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
             ],
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(
-              'Close',
-              style: AppTypography.titleMedium.copyWith(
-                color: AppColors.primary,
+          for (final (label, color, onTap) in [
+            ('Delete', AppColors.pinkCarnation, () => _delete(r)),
+            ('Edit', AppColors.primary, () => _startEdit(r)),
+            ('Close', AppColors.primary, () {}),
+          ])
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                onTap();
+              },
+              child: Text(
+                label,
+                style: AppTypography.titleMedium.copyWith(color: color),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -482,6 +546,7 @@ class _CognitiveReframingPageState extends State<CognitiveReframingPage> {
               child: _isSubmitted
                   ? _buildCompletionScreen(isLightMode)
                   : SingleChildScrollView(
+                      controller: _scroll,
                       padding: const EdgeInsets.all(24),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -515,6 +580,30 @@ class _CognitiveReframingPageState extends State<CognitiveReframingPage> {
                               color: AppColors.primary,
                             ),
                           ),
+                          if (_editing != null)
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Editing your reflection from '
+                                    '${DateFormat('MMM d, h:mm a').format(_editing!)}',
+                                    style: AppTypography.bodyMedium.copyWith(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: _cancelEdit,
+                                  child: Text(
+                                    'Cancel',
+                                    style: AppTypography.bodyMedium.copyWith(
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           const SizedBox(height: 24),
                           for (var i = 0; i < _prompts.length; i++)
                             _buildJournalField(
@@ -538,7 +627,7 @@ class _CognitiveReframingPageState extends State<CognitiveReframingPage> {
                                 ),
                               ),
                               child: Text(
-                                'Finish',
+                                _editing == null ? 'Finish' : 'Save changes',
                                 style: AppTypography.titleLarge.copyWith(
                                   color: Colors.white,
                                 ),

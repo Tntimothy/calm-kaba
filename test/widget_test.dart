@@ -229,6 +229,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('I will fail'), findsOneWidget);
 
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(3), 'I am ready');
+    await tester.tap(find.text('Save changes'));
+    await tester.pumpAndSettle();
+    expect((await Reflections.load()).single.answers.last, 'I am ready');
+
+    await tester.pumpWidget(const SizedBox());
+    await open();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('I am ready'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete')); // Confirm.
+    await tester.pumpAndSettle();
+    expect(find.text('Past reflections'), findsNothing);
+
     messenger.setMockMethodCallHandler(channel, null);
     await tester.binding.setSurfaceSize(null);
   });

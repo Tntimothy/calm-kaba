@@ -53,6 +53,19 @@ class Reflections {
       jsonEncode({'time': time.toIso8601String(), 'answers': answers}),
     ]);
   }
+
+  /// Replaces the entry kept at [time], or deletes it when [answers] is null.
+  static Future<void> replace(DateTime time, List<String>? answers) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = time.toIso8601String();
+    await prefs.setStringList(_key, [
+      for (final raw in prefs.getStringList(_key) ?? [])
+        if (jsonDecode(raw)['time'] != key)
+          raw
+        else if (answers != null)
+          jsonEncode({'time': key, 'answers': answers}),
+    ]);
+  }
 }
 
 class LogEntry {
