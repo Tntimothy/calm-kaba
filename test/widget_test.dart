@@ -42,22 +42,14 @@ void main() {
     final smoother = ScoreSmoother();
     double? score(double? raw, double end) =>
         smoother.apply([result(raw)], end).single.score;
-    expect(score(.9, 5), isNull);
+    // smooth3 from the first window: no wait, then at most three windows.
+    expect(score(.9, 5), closeTo(.9, 1e-9));
     expect(score(.3, 7), closeTo(.6, 1e-9));
-    expect(score(.6, 9), closeTo(.45, 1e-9));
-    expect(score(.9, 20), isNull);
+    expect(score(.6, 9), closeTo(.6, 1e-9));
+    expect(score(0, 11), closeTo(.3, 1e-9));
+    expect(score(.9, 20), closeTo(.9, 1e-9));
     expect(score(null, 22), isNull);
-    expect(score(.9, 24), isNull);
-    final breathing = BehaviorResult.fromMap({
-      'symptom': 'heavy_breathing',
-      'score': .8,
-      'threshold': .5,
-    });
-    final waits = [
-      for (var end = 30.0; end <= 36; end += 2)
-        smoother.apply([breathing], end).single.score,
-    ];
-    expect(waits, [null, null, null, closeTo(.8, 1e-9)]);
+    expect(score(.4, 24), closeTo(.4, 1e-9));
   });
   test(
     'simultaneous detections persist without overwriting each other',
@@ -65,13 +57,13 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final logs = LogService();
       await Future.wait([
-        logs.addLog('Fidgeting', score: .8, threshold: .5),
+        logs.addLog('Fidgeting', score: .8, threshold: .5, modelRun: 'run'),
         logs.addLog('Hand Tremor', score: .6, threshold: .5),
       ]);
       final saved = await logs.getLogs();
       expect(saved.map((e) => e.symptom), ['Fidgeting', 'Hand Tremor']);
       expect(saved.first.score, .8);
-      expect(saved.first.modelRun, contains('/full/vs_everything'));
+      expect(saved.first.modelRun, 'run');
       expect(
         LogEntry.fromMap({
           'symptom': 'Old log',
@@ -126,7 +118,8 @@ void main() {
       expect(detected, isEmpty);
       await packet(.53);
       expect(detected.single.label, 'Fidgeting');
-      expect(detected.single.score, closeTo(.505, 1e-9));
+      // smooth3: mean(.49, .48, .53) reaches the .5 threshold.
+      expect(detected.single.score, closeTo(.5, 1e-9));
       expect(stopCalls, 1);
       await packet(.9);
       expect(detected.length, 1);

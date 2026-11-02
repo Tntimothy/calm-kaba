@@ -100,8 +100,8 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
     private var lastTrackingEvent = 0L
     @Volatile private var disposed = false
     @Volatile private var running = false
-    /** Model bundle for the next start: "behavior" (822, vs everything) or "behavior_v6" (lead, 1,122, vs control). */
-    @Volatile var modelFolder = "behavior"
+    /** Model bundle for the next start: "behavior_v7" (lead, calibrated), "behavior_v6" (lead, 1,122) or "behavior" (822). */
+    @Volatile var modelFolder = "behavior_v7"
     /** Keep the camera at 30 fps in dim light (shorter exposure: darker, noisier frames). */
     @Volatile var lockFps30 = true
     /**
@@ -313,7 +313,9 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
                     Camera2CameraInfo.from(bound.cameraInfo).getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE) ==
                         CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME
                 } catch (e: Throwable) { null }
-                event(id,mapOf("type" to "status", "message" to "Settle for one second, then hold position for about six seconds"))
+                event(id,mapOf("type" to "status", "message" to if (bank?.calibrating == true)
+                    "Calibrating: sit normally and breathe as usual for about 10 seconds"
+                    else "Hold position; the first result comes in about 5 seconds"))
             } catch (e: Throwable) { fail(id,e) }
         },ContextCompat.getMainExecutor(activity))
     }
@@ -424,7 +426,8 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
             val now = SystemClock.elapsedRealtime()
             if (interrupted || tracking != lastTracking || now-lastTrackingEvent >= 200) {
                 lastTracking = tracking; lastTrackingEvent = now
-                event(id,mapOf("type" to "tracking", "tracking" to tracking, "progress" to window.progress(), "interrupted" to interrupted))
+                event(id,mapOf("type" to "tracking", "tracking" to tracking, "progress" to window.progress(), "interrupted" to interrupted,
+                    "calibration" to bank!!.calibrationProgress(window.elapsed())))
             }
             if (snapshot != null) {
                 // The snapshot is a copy, so later frames cannot change this window.

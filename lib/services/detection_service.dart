@@ -34,13 +34,11 @@ class BehaviorResult {
   bool get detected => score != null && score!.isFinite && score! >= threshold;
 }
 
-/// Decisions use the mean of the last consecutive valid window scores, so
-/// landmarks settle and one noisy window cannot decide alone. Two windows put
-/// the first decision about 7 s into a scan; heavy breathing waits 4 s longer.
+/// The lead's smooth3 (train/02-11-26/light2.py): each decision is the mean of
+/// the last up to three consecutive window scores, from the first window on,
+/// which is what the models' thresholds were tuned for.
 class ScoreSmoother {
-  static const settling = 'Settling, hold still';
-  static int windowsFor(String symptom) =>
-      symptom == 'heavy_breathing' ? 4 : 2;
+  static const windows = 3;
   final Map<String, List<double>> _recent = {};
   double? _lastEnd;
   void reset() {
@@ -60,15 +58,11 @@ class ScoreSmoother {
             recent.clear();
             return raw;
           }
-          final n = windowsFor(raw.symptom);
           recent.add(raw.score!);
-          if (recent.length > n) recent.removeAt(0);
-          if (recent.length < n) {
-            return BehaviorResult._smoothed(raw, null, settling);
-          }
+          if (recent.length > windows) recent.removeAt(0);
           return BehaviorResult._smoothed(
             raw,
-            recent.reduce((a, b) => a + b) / n,
+            recent.reduce((a, b) => a + b) / recent.length,
             raw.reason,
           );
         }(),
@@ -127,6 +121,9 @@ class DetectionService {
   bool _disposed = false;
   DetectionMode currentMode = DetectionMode.instant;
   List<BehaviorResult> results = [];
+
+  /// Model bundle behind [results], for the history log.
+  String? runId;
   Stream<Map<dynamic, dynamic>> get updates => _updates.stream;
   Stream<BehaviorResult> get detectionStream => _detections.stream;
 
@@ -164,6 +161,7 @@ class DetectionService {
         }
         if (packet['type'] == 'prediction') {
           final time = (packet['end'] as num).toDouble();
+          runId = packet['runId'] as String?;
           results = _smoother.apply(
             (packet['results'] as List)
                 .map((e) => BehaviorResult.fromMap(e as Map))
@@ -213,8 +211,9 @@ class DetectionService {
     }
   }
 
-  /// Model bundle for the next scan: 'v4' (822 features, symptom vs everything)
-  /// or 'v6' (the lead's 1,122-feature LightGBM, symptom vs control).
+  /// Model bundle for the next scan: 'v7' (default; the lead's calibrated
+  /// models), 'v6' (the lead's 1,122-feature LightGBM, symptom vs control) or
+  /// 'v4' (822 features, symptom vs everything).
   Future<void> setModels(String version) async {
     try {
       await _methods.invokeMethod<void>('models', version);

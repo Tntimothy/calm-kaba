@@ -248,6 +248,8 @@ class LiveWindow {
         return result
     }
     fun progress(): Double = if (start == null || last == null) 0.0 else ((last!!-start!!)/4).coerceIn(0.0,1.0)
+    /** Seconds since the first frame after the last reset. */
+    fun elapsed(): Double = if (began == null || last == null) 0.0 else last!!-began!!
 }
 
 fun trackingReason(symptom: String, coverage: Map<String, Double>, fps: Double): String {

@@ -73,13 +73,14 @@ class _HomePageState extends State<HomePage>
             _fps = null;
             _status = 'Tracking was interrupted. Collecting a fresh window.';
           case 'prediction':
-            _results = List.of(_detectionService.results);
+            final calibrating = packet['calibrating'] == true;
+            _results = calibrating ? [] : List.of(_detectionService.results);
             _fps = (packet['fps'] as num).toDouble();
             final count = _results.where((r) => r.detected).length;
-            _status = count > 0
+            _status = calibrating
+                ? 'Calibrating: sit normally and breathe as usual'
+                : count > 0
                 ? '$count behavioral model detection${count == 1 ? '' : 's'} in this window'
-                : _results.any((r) => r.reason == ScoreSmoother.settling)
-                ? 'Settling, hold still for a few more seconds'
                 : _results.any((r) => r.score != null)
                 ? 'No above-threshold behavioral detections in this window'
                 : 'Tracking unavailable. Adjust your position using the guidance below.';
@@ -109,6 +110,7 @@ class _HomePageState extends State<HomePage>
             result.label,
             score: result.score,
             threshold: result.threshold,
+            modelRun: _detectionService.runId,
           );
         } catch (error) {
           if (mounted) {
@@ -345,13 +347,27 @@ class _HomePageState extends State<HomePage>
                     valueListenable: _tracking,
                     builder: (context, packet, _) {
                       final tracking = (packet['tracking'] as Map?) ?? {};
+                      final calibration = (packet['calibration'] as num?)
+                          ?.toDouble();
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const SizedBox(height: 12),
+                          if (calibration != null) ...[
+                            Text(
+                              'Calibrating ${(calibration * 100).round()}%: '
+                              'sit normally and breathe as usual',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                          ],
                           LinearProgressIndicator(
                             value:
-                                (packet['progress'] as num?)?.toDouble() ?? 0,
+                                calibration ??
+                                (packet['progress'] as num?)?.toDouble() ??
+                                0,
                             color: AppColors.textPrimary,
                             backgroundColor: Colors.white24,
                           ),
@@ -399,9 +415,10 @@ class _HomePageState extends State<HomePage>
                     color: AppColors.textPrimary,
                   ),
                 ),
-                // Timing note (ScoreSmoother); delete this Text to remove it.
+                // Timing note (calibration, ModelBank); delete this Text to remove it.
                 Text(
-                  'The first result appears after about 7 seconds.',
+                  'Your first scan starts with about 10 seconds of calibration. '
+                  'Later scans show a result in about 5 seconds.',
                   style: AppTypography.bodySmall.copyWith(
                     color: AppColors.textPrimary,
                   ),
@@ -430,7 +447,7 @@ class _HomePageState extends State<HomePage>
                     children: [
                       Expanded(
                         child: Text(
-                          'All-landmark models (lead v6, symptom vs control; next scan)',
+                          'Older models without calibration (lead v6; next scan)',
                           style: AppTypography.bodySmall.copyWith(
                             color: AppColors.textPrimary,
                           ),
@@ -444,7 +461,7 @@ class _HomePageState extends State<HomePage>
                                 setState(() => _leadModels = value);
                                 unawaited(
                                   _detectionService.setModels(
-                                    value ? 'v6' : 'v4',
+                                    value ? 'v6' : 'v7',
                                   ),
                                 );
                               },

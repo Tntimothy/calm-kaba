@@ -19,7 +19,7 @@ class MainActivity : FlutterActivity() {
     private var panel: CameraPanel? = null
     private var sink: EventChannel.EventSink? = null
     private var diagnostics = false
-    private var modelFolder = "behavior"
+    private var modelFolder = "behavior_v7"
     private var trackingDelegate = "CPU"
     private var lockFps30 = true
     private var hidePreview = false
@@ -43,7 +43,7 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "start" -> if (panel == null) result.error("camera_not_ready","Wait for the preview to open",null) else { panel!!.start(); result.success(null) }
                 "stop" -> { panel?.stop(); result.success(null) }
-                "models" -> { modelFolder = if (call.arguments == "v6") "behavior_v6" else "behavior"; panel?.modelFolder = modelFolder; result.success(null) }
+                "models" -> { modelFolder = when (call.arguments) { "v4" -> "behavior"; "v6" -> "behavior_v6"; else -> "behavior_v7" }; panel?.modelFolder = modelFolder; result.success(null) }
                 // "CPU", "GPU", or a comma list of tasks for GPU ("face,pose,hands").
                 "delegate" -> { trackingDelegate = (call.arguments as? String)?.ifBlank { "CPU" } ?: "CPU"; panel?.requestedDelegate = trackingDelegate; result.success(null) }
                 "fpsLock" -> { lockFps30 = call.arguments == true; panel?.lockFps30 = lockFps30; result.success(null) }

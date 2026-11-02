@@ -167,6 +167,60 @@ class PipelineParityTest {
             for (r in results) assertNull((r as Map<*,*>)["score"])
         }
     }
+    /** tools/export_v7_models.py: light2.robust_z and the lead's joblib models on synthetic windows. */
+    @Test fun calibratedInputsMatchLight2() {
+        val data = JSONObject(File("src/test/resources/personal_v7.json").readText())
+        fun rows(key: String) = data.getJSONArray(key).let { a -> List(a.length()) { array(a.getJSONArray(it)) } }
+        val targets = rows("targets")
+        ModelBank("behavior_v7") { File(assets,it).readBytes() }.use { b ->
+            b.useBaseline(rows("calibration"))
+            val cases = data.getJSONArray("cases")
+            var zError = 0.0; var pError = 0.0
+            for (i in 0 until cases.length()) {
+                val c = cases.getJSONObject(i); val m = b.model(c.getString("symptom"))
+                val z = c.getJSONArray("z"); val probs = array(c.getJSONArray("probabilities"))
+                for ((t, features) in targets.withIndex()) {
+                    val x = b.inputs(m,features)
+                    assertEquals(c.getString("symptom"),c.getDouble("available"),x.last(),0.0)
+                    val expected = array(z.getJSONArray(t))
+                    for (k in expected.indices) {
+                        val actual = x[m.indices.size+k]
+                        if (expected[k].isNaN()) { assertTrue("${c.getString("symptom")} z[$k] should be missing",actual.isNaN()); continue }
+                        zError = maxOf(zError,abs(actual-expected[k]))
+                    }
+                    pError = maxOf(pError,abs(NativeLgbm.predict(m.handle,x)-probs[t]))
+                }
+            }
+            assertTrue("z error $zError",zError <= 1e-6)
+            assertTrue("probability error $pError",pError <= 1e-6)
+        }
+    }
+
+    /** Three uninterrupted windows calibrate, the overlapping window is skipped, later scans reuse the baseline. */
+    @Test fun calibrationTimingAndReuse() {
+        ModelBank.forgetBaselines()
+        val body = List(33) { Point3(.3+.01*it,.2+.02*it) }
+        fun bank() = ModelBank("behavior_v7") { File(assets,it).readBytes() }
+        fun fidgeting(b: ModelBank, records: List<Observation>, start: Double) =
+            ((b.predict(records,start)["results"] as List<*>).map { it as Map<*,*> }.first { it["symptom"] == "fidgeting" })
+        try {
+            bank().use { b ->
+                val records = List(30*18) { i ->
+                    val hand = List(21) { j -> Point3(body[15].x+.005*j,body[15].y+.003*j+.002*kotlin.math.sin(i*1.7)) }
+                    LandmarkAdapter.adapt(i/30.0,emptyList(),body,listOf(hand),emptyMap(),null,b.engine.bs,b.engine.fm,480,640)
+                }
+                assertEquals(0.0,b.calibrationProgress(0.0)!!,0.0)
+                fidgeting(b,records,1.0)
+                fidgeting(b,records,5.0)  // not 2 s after the last window: calibration starts over
+                assertEquals(ModelBank.CALIBRATING,fidgeting(b,records,7.0)["reason"]); assertTrue(b.calibrating)
+                assertEquals(ModelBank.CALIBRATING,fidgeting(b,records,9.0)["reason"])  // third consecutive window
+                assertFalse(b.calibrating); assertNull(b.calibrationProgress(9.0))
+                assertEquals(ModelBank.CALIBRATING,fidgeting(b,records,11.0)["reason"])  // overlaps the calibration windows
+                assertNotNull(fidgeting(b,records,13.0)["score"])
+                bank().use { next -> assertFalse(next.calibrating); assertNotNull(fidgeting(next,records,1.0)["score"]) }
+            }
+        } finally { ModelBank.forgetBaselines() }
+    }
     @Test fun handsOnEveryOtherFrameKeepFullCoverageAndFeatures() {
         val body = List(33) { Point3(.3+.01*it,.2+.02*it) }
         bank().use { b ->
