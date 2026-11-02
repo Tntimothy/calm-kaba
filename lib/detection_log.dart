@@ -34,10 +34,10 @@ class _DetectionLogPageState extends State<DetectionLogPage> {
 
   Future<void> _exportLogs() async {
     try {
-      final file = await _logService.exportLogs();
+      final path = await _logService.exportLogs();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Logs exported to: ${file.path}')),
+          SnackBar(content: Text('Logs saved on this phone: $path')),
         );
       }
     } catch (e) {

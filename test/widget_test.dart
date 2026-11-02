@@ -37,17 +37,26 @@ void main() {
       expect(rule.accept(result(.9), 117), isFalse);
     },
   );
-  test('decisions average three consecutive windows and restart on a gap', () {
+  test('decisions average consecutive windows and restart on a gap', () {
     final smoother = ScoreSmoother();
     double? score(double? raw, double end) =>
         smoother.apply([result(raw)], end).single.score;
     expect(score(.9, 5), isNull);
-    expect(score(.9, 7), isNull);
-    expect(score(.3, 9), closeTo(.7, 1e-9));
-    expect(score(.6, 11), closeTo(.6, 1e-9));
+    expect(score(.3, 7), closeTo(.6, 1e-9));
+    expect(score(.6, 9), closeTo(.45, 1e-9));
     expect(score(.9, 20), isNull);
     expect(score(null, 22), isNull);
     expect(score(.9, 24), isNull);
+    final breathing = BehaviorResult.fromMap({
+      'symptom': 'heavy_breathing',
+      'score': .8,
+      'threshold': .5,
+    });
+    final waits = [
+      for (var end = 30.0; end <= 36; end += 2)
+        smoother.apply([breathing], end).single.score,
+    ];
+    expect(waits, [null, null, null, closeTo(.8, 1e-9)]);
   });
   test(
     'simultaneous detections persist without overwriting each other',
@@ -111,11 +120,12 @@ void main() {
       await service.startDetection();
       await packet(null);
       await packet(.49);
-      await packet(.5);
       expect(detected, isEmpty);
-      await packet(.52);
+      await packet(.48);
+      expect(detected, isEmpty);
+      await packet(.53);
       expect(detected.single.label, 'Fidgeting');
-      expect(detected.single.score, closeTo(.5033, 1e-3));
+      expect(detected.single.score, closeTo(.505, 1e-9));
       expect(stopCalls, 1);
       await packet(.9);
       expect(detected.length, 1);

@@ -7,6 +7,9 @@ import 'services/navigation_observer.dart';
 import 'components/camera_preview.dart';
 import 'components/diagnostics_panel.dart';
 
+/// Build with --dart-define=INSTANT_MODE=false for the continuous-only app.
+const _instantMode = bool.fromEnvironment('INSTANT_MODE', defaultValue: true);
+
 class HomePage extends StatefulWidget {
   final bool active;
   const HomePage({super.key, this.active = true});
@@ -32,7 +35,7 @@ class _HomePageState extends State<HomePage>
   bool _handsHalfRate = false;
   bool _lowResAnalysis = false;
   double _hintTargetMs = 0;
-  int _selectedTabIndex = 0;
+  int _selectedTabIndex = _instantMode ? 0 : 1;
   String _status =
       'Keep your face, shoulders, and hands visible. Move back for knees.';
   List<BehaviorResult> _results = [];
@@ -746,7 +749,7 @@ class _HomePageState extends State<HomePage>
                   ),
                   child: Row(
                     children: [
-                      _buildTabButton('Instant Scan', 0),
+                      if (_instantMode) _buildTabButton('Instant Scan', 0),
                       _buildTabButton('Continuous Scan', 1),
                     ],
                   ),

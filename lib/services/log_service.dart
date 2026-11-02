@@ -1,7 +1,29 @@
 import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+
+/// Saves a text file on this phone where the user can open it
+/// (Download/Calm Kaba on Android) and returns where it went.
+Future<String> saveTextFile(String name, String text) async {
+  try {
+    return (await const MethodChannel(
+      'calm/detection',
+    ).invokeMethod<String>('saveText', {'name': name, 'text': text}))!;
+  } on MissingPluginException {
+    // Non-Android builds and tests have no native side.
+    final directory = await getApplicationDocumentsDirectory();
+    return (await File('${directory.path}/$name').writeAsString(text)).path;
+  }
+}
+
+/// File-name-safe local time, e.g. 2026-11-02_14-05-09.
+String fileStamp(DateTime t) => t
+    .toIso8601String()
+    .substring(0, 19)
+    .replaceAll(':', '-')
+    .replaceAll('T', '_');
 
 class LogEntry {
   final String symptom;
@@ -95,11 +117,9 @@ class LogService {
     return write;
   }
 
-  Future<File> exportLogs() async {
+  /// Returns where the file was saved.
+  Future<String> exportLogs() async {
     final logs = await getLogs();
-    final directory = await getApplicationDocumentsDirectory();
-    final file = File('${directory.path}/detection_logs.txt');
-
     final buffer = StringBuffer();
     buffer.writeln("--- Detection Logs ---");
     for (var log in logs) {
@@ -109,6 +129,9 @@ class LogService {
       );
     }
 
-    return await file.writeAsString(buffer.toString());
+    return saveTextFile(
+      'detection_logs_${fileStamp(DateTime.now())}.txt',
+      buffer.toString(),
+    );
   }
 }

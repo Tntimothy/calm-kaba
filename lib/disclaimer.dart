@@ -137,6 +137,8 @@ class DisclaimerPage extends StatelessWidget {
                 'People express emotions, physical sensations, and '
                     'behaviors differently. A movement or facial '
                     'expression does not necessarily indicate anxiety. '
+                    'How severe your anxiety is can also change how '
+                    'strongly, or whether, a symptom shows. '
                     'The absence of a detected symptom also does not '
                     'mean that a person is not experiencing anxiety '
                     'or emotional distress.',

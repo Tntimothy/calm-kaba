@@ -7,9 +7,13 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.StandardMessageCodec
 import io.flutter.plugin.platform.PlatformView
 import io.flutter.plugin.platform.PlatformViewFactory
+import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.os.Build
+import android.provider.MediaStore
+import java.io.File
 
 class MainActivity : FlutterActivity() {
     private var panel: CameraPanel? = null
@@ -47,10 +51,27 @@ class MainActivity : FlutterActivity() {
                 "handsHalfRate" -> { handsHalfRate = call.arguments == true; panel?.handsHalfRate = handsHalfRate; result.success(null) }
                 "hintTarget" -> { hintTargetMs = (call.arguments as? Number)?.toDouble() ?: 0.0; panel?.hintTargetMs = hintTargetMs; result.success(null) }
                 "hidePreview" -> { hidePreview = call.arguments == true; panel?.hidePreview = hidePreview; result.success(null) }
+                "saveText" -> try {
+                    val a = call.arguments as Map<*,*>
+                    result.success(saveText(a["name"] as String, a["text"] as String))
+                } catch (e: Exception) { result.error("save_failed",e.message,null) }
                 "diagnostics" -> { diagnostics = call.arguments == true; panel?.diagnosticsEnabled = diagnostics; result.success(null) }
                 else -> result.notImplemented()
             }
         }
+    }
+    /** Writes a text file the user can open: Download/Calm Kaba (Android 10+), else the app's external files folder. */
+    private fun saveText(name: String, text: String): String {
+        if (Build.VERSION.SDK_INT >= 29) {
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME,name); put(MediaStore.Downloads.MIME_TYPE,"text/plain")
+                put(MediaStore.Downloads.RELATIVE_PATH,"Download/Calm Kaba")
+            }
+            val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values) ?: error("Could not create $name")
+            contentResolver.openOutputStream(uri)!!.use { it.write(text.toByteArray()) }
+            return "Download/Calm Kaba/$name"
+        }
+        return File(getExternalFilesDir(null),name).apply { writeText(text) }.path
     }
     fun detachPanel(value: CameraPanel) { if (panel === value) panel = null }
     fun requestCameraPermission() { requestPermissions(arrayOf(android.Manifest.permission.CAMERA),701) }

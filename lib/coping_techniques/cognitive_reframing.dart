@@ -1,46 +1,97 @@
-
 import 'package:flutter/material.dart';
+import '../services/log_service.dart';
 import '../theme/design_system.dart';
+
+const _prompts = [
+  ('1. Identify the negative thought', 'What is bothering you right now?'),
+  ('2. Examine the evidence', 'What facts support or contradict this thought?'),
+  (
+    '3. Spot Cognitive distortions',
+    'Are you mind-reading, catastrophizing, or using "all-or-nothing" thinking?',
+  ),
+  (
+    '4. Replace with a balanced alternative',
+    'What is a more realistic, compassionate way to look at this?',
+  ),
+];
 
 class CognitiveReframingPage extends StatefulWidget {
   const CognitiveReframingPage({super.key});
 
   @override
-  State<CognitiveReframingPage> createState() =>
-      _CognitiveReframingPageState();
+  State<CognitiveReframingPage> createState() => _CognitiveReframingPageState();
 }
 
-class _CognitiveReframingPageState
-    extends State<CognitiveReframingPage> {
+class _CognitiveReframingPageState extends State<CognitiveReframingPage> {
   bool _isSubmitted = false;
+  String? _savedTo;
+  final _answers = List.generate(
+    _prompts.length,
+    (_) => TextEditingController(),
+  );
+
+  @override
+  void dispose() {
+    for (final c in _answers) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  /// Saves the entry as a .txt file on this phone only, then shows completion.
+  Future<void> _submit() async {
+    String? savedTo;
+    if (_answers.any((c) => c.text.trim().isNotEmpty)) {
+      final now = DateTime.now();
+      final text = StringBuffer('Reframing Journal - $now\n');
+      for (var i = 0; i < _prompts.length; i++) {
+        text.writeln('\n${_prompts[i].$1}\n${_answers[i].text.trim()}');
+      }
+      try {
+        savedTo = await saveTextFile(
+          'reframing_${fileStamp(now)}.txt',
+          text.toString(),
+        );
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not save your entry: $e')),
+          );
+        }
+        return;
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _savedTo = savedTo;
+        _isSubmitted = true;
+      });
+    }
+  }
 
   Widget _buildJournalField(
-      String title,
-      String hint,
-      bool isLightMode,
-      ) {
+    String title,
+    String hint,
+    TextEditingController controller,
+    bool isLightMode,
+  ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(
-          isLightMode ? 12 : 24,
-        ),
+        borderRadius: BorderRadius.circular(isLightMode ? 12 : 24),
         border: isLightMode
             ? null
-            : Border.all(
-          color: AppColors.elizabeth,
-          width: 4,
-        ),
+            : Border.all(color: AppColors.elizabeth, width: 4),
         boxShadow: isLightMode
             ? [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ]
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ]
             : [],
       ),
       child: Column(
@@ -48,16 +99,13 @@ class _CognitiveReframingPageState
         children: [
           Text(
             title,
-            style: AppTypography.titleLarge.copyWith(
-              color: AppColors.primary,
-            ),
+            style: AppTypography.titleLarge.copyWith(color: AppColors.primary),
           ),
           const SizedBox(height: 16),
           TextField(
+            controller: controller,
             maxLines: 4,
-            style: AppTypography.bodyLarge.copyWith(
-              color: AppColors.primary,
-            ),
+            style: AppTypography.bodyLarge.copyWith(color: AppColors.primary),
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: AppTypography.bodyMedium.copyWith(
@@ -98,23 +146,18 @@ class _CognitiveReframingPageState
           padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(
-              isLightMode ? 12 : 24,
-            ),
+            borderRadius: BorderRadius.circular(isLightMode ? 12 : 24),
             border: isLightMode
                 ? null
-                : Border.all(
-              color: AppColors.elizabeth,
-              width: 4,
-            ),
+                : Border.all(color: AppColors.elizabeth, width: 4),
             boxShadow: isLightMode
                 ? [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
-              ),
-            ]
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
                 : [],
           ),
           child: Column(
@@ -142,9 +185,8 @@ class _CognitiveReframingPageState
               ),
               const SizedBox(height: 16),
               Text(
-                'You took a great step in challenging negative '
-                    'thoughts. Your journal entry was cleared to '
-                    'protect your privacy.',
+                'You took a great step in challenging negative thoughts. '
+                '${_savedTo == null ? 'Nothing was written, so nothing was saved.' : 'Your entry was saved only on this phone: $_savedTo'}',
                 style: AppTypography.bodyMedium.copyWith(
                   color: AppColors.textPrimary,
                 ),
@@ -160,9 +202,7 @@ class _CognitiveReframingPageState
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(30),
                     ),
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 16,
-                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                   child: Text(
                     'Done',
@@ -190,28 +230,46 @@ class _CognitiveReframingPageState
       builder: (context) {
         final isLightMode = Theme.of(context).brightness == Brightness.light;
         return AlertDialog(
-          backgroundColor: isLightMode ? Theme.of(context).extension<AppColorsExtension>()!.secondaryBackground : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          backgroundColor: isLightMode
+              ? Theme.of(
+                  context,
+                ).extension<AppColorsExtension>()!.secondaryBackground
+              : Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
           title: Text(
-            'Exit Session?', 
+            'Exit Session?',
             style: AppTypography.titleLarge.copyWith(color: AppColors.primary),
           ),
           content: Text(
             'Are you sure you want to exit before completing Cognitive Reframing?',
-            style: AppTypography.bodyMedium.copyWith(color: isLightMode ? AppColors.textPrimary : AppColors.secondary),
+            style: AppTypography.bodyMedium.copyWith(
+              color: isLightMode ? AppColors.textPrimary : AppColors.secondary,
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: Text('Cancel', style: AppTypography.titleMedium.copyWith(color: AppColors.primary)),
+              child: Text(
+                'Cancel',
+                style: AppTypography.titleMedium.copyWith(
+                  color: AppColors.primary,
+                ),
+              ),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: Text('Exit', style: AppTypography.titleMedium.copyWith(color: AppColors.pinkCarnation)),
+              child: Text(
+                'Exit',
+                style: AppTypography.titleMedium.copyWith(
+                  color: AppColors.pinkCarnation,
+                ),
+              ),
             ),
           ],
         );
-      }
+      },
     );
 
     return shouldPop ?? false;
@@ -239,93 +297,74 @@ class _CognitiveReframingPageState
               child: _isSubmitted
                   ? _buildCompletionScreen(isLightMode)
                   : SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: IconButton(
-                        onPressed: () async {
-                          final shouldPop = await _onWillPop();
-                          if (shouldPop && context.mounted) {
-                            Navigator.of(context).pop();
-                          }
-                        },
-                        icon: const Icon(Icons.arrow_back_ios_new),
-                        color: AppColors.primary,
-                        tooltip: 'Back',
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: IconButton(
+                              onPressed: () async {
+                                final shouldPop = await _onWillPop();
+                                if (shouldPop && context.mounted) {
+                                  Navigator.of(context).pop();
+                                }
+                              },
+                              icon: const Icon(Icons.arrow_back_ios_new),
+                              color: AppColors.primary,
+                              tooltip: 'Back',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Reframing Journal',
+                            style: AppTypography.headlineMedium.copyWith(
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Work through your thoughts by filling out '
+                            'the journal prompts below.',
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          for (var i = 0; i < _prompts.length; i++)
+                            _buildJournalField(
+                              _prompts[i].$1,
+                              _prompts[i].$2,
+                              _answers[i],
+                              isLightMode,
+                            ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _submit,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 20,
+                                ),
+                              ),
+                              child: Text(
+                                'Reflect & Save',
+                                style: AppTypography.titleLarge.copyWith(
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                        ],
                       ),
                     ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Reframing Journal',
-                    style: AppTypography.headlineMedium.copyWith(
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Work through your thoughts by filling out '
-                        'the journal prompts below.',
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  _buildJournalField(
-                    '1. Identify the negative thought',
-                    'What is bothering you right now?',
-                    isLightMode,
-                  ),
-                  _buildJournalField(
-                    '2. Examine the evidence',
-                    'What facts support or contradict this thought?',
-                    isLightMode,
-                  ),
-                  _buildJournalField(
-                    '3. Spot Cognitive distortions',
-                    'Are you mind-reading, catastrophizing, or '
-                        'using "all-or-nothing" thinking?',
-                    isLightMode,
-                  ),
-                  _buildJournalField(
-                    '4. Replace with a balanced alternative',
-                    'What is a more realistic, compassionate '
-                        'way to look at this?',
-                    isLightMode,
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _isSubmitted = true;
-                        });
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 20,
-                        ),
-                      ),
-                      child: Text(
-                        'Reflect & Clear',
-                        style: AppTypography.titleLarge.copyWith(
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
-              ),
             ),
-          ),
           ),
         );
       },

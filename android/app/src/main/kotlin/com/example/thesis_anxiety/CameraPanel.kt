@@ -313,7 +313,7 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
                     Camera2CameraInfo.from(bound.cameraInfo).getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE) ==
                         CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME
                 } catch (e: Throwable) { null }
-                event(id,mapOf("type" to "status", "message" to "Settle for one second, then hold position for about eight seconds"))
+                event(id,mapOf("type" to "status", "message" to "Settle for one second, then hold position for about six seconds"))
             } catch (e: Throwable) { fail(id,e) }
         },ContextCompat.getMainExecutor(activity))
     }

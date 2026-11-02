@@ -34,11 +34,13 @@ class BehaviorResult {
   bool get detected => score != null && score!.isFinite && score! >= threshold;
 }
 
-/// Decisions use the mean of the last three consecutive valid window scores
-/// (the lead's "smooth3"), so landmarks settle and one noisy window cannot
-/// decide alone. The first decision comes about 9 s into a scan.
+/// Decisions use the mean of the last consecutive valid window scores, so
+/// landmarks settle and one noisy window cannot decide alone. Two windows put
+/// the first decision about 7 s into a scan; heavy breathing waits 4 s longer.
 class ScoreSmoother {
   static const settling = 'Settling, hold still';
+  static int windowsFor(String symptom) =>
+      symptom == 'heavy_breathing' ? 4 : 2;
   final Map<String, List<double>> _recent = {};
   double? _lastEnd;
   void reset() {
@@ -58,14 +60,15 @@ class ScoreSmoother {
             recent.clear();
             return raw;
           }
+          final n = windowsFor(raw.symptom);
           recent.add(raw.score!);
-          if (recent.length > 3) recent.removeAt(0);
-          if (recent.length < 3) {
+          if (recent.length > n) recent.removeAt(0);
+          if (recent.length < n) {
             return BehaviorResult._smoothed(raw, null, settling);
           }
           return BehaviorResult._smoothed(
             raw,
-            recent.reduce((a, b) => a + b) / 3,
+            recent.reduce((a, b) => a + b) / n,
             raw.reason,
           );
         }(),
