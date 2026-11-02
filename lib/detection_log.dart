@@ -131,7 +131,11 @@ class _DetectionLogPageState extends State<DetectionLogPage> {
 
   Widget _buildLogItem(LogEntry log) {
     final dateStr = DateFormat('MMM d, h:mm a').format(log.timestamp.toLocal());
-    
+    // Text must contrast with the card: pink card in light mode, white card in dark mode.
+    final textColor = Theme.of(context).brightness == Brightness.light
+        ? Colors.white
+        : AppColors.textPrimary;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -160,18 +164,12 @@ class _DetectionLogPageState extends State<DetectionLogPage> {
               children: [
                 Text(
                   log.symptom,
-                  style: AppTypography.titleMedium.copyWith(color: Theme.of(context).brightness == Brightness.light
-                      ? AppColors.tertiary
-                      : Colors.white,),
+                  style: AppTypography.titleMedium.copyWith(color: textColor),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   dateStr,
-                  style: AppTypography.bodySmall.copyWith(
-                      color: Theme.of(context).brightness == Brightness.light
-                          ? AppColors.tertiary
-                          : Colors.white,
-                  ),
+                  style: AppTypography.bodySmall.copyWith(color: textColor),
                 ),
               ],
             ),
