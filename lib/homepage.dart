@@ -37,7 +37,7 @@ class _HomePageState extends State<HomePage>
   double _hintTargetMs = 0;
   int _selectedTabIndex = _instantMode ? 0 : 1;
   String _status =
-      'Keep your face, shoulders, and hands visible. Move back for knees.';
+      'Prop your phone about 1 m away so your face to knees are in view.';
   List<BehaviorResult> _results = [];
   double? _fps;
 
@@ -353,23 +353,14 @@ class _HomePageState extends State<HomePage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const SizedBox(height: 12),
-                          if (calibration != null) ...[
-                            Text(
-                              'Calibrating ${(calibration * 100).round()}%: '
-                              'sit normally and breathe as usual',
-                              style: AppTypography.bodySmall.copyWith(
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                          ],
-                          LinearProgressIndicator(
+                          _ScanProgress(
+                            label: calibration != null
+                                ? 'Calibrating'
+                                : 'Current window',
                             value:
                                 calibration ??
                                 (packet['progress'] as num?)?.toDouble() ??
                                 0,
-                            color: AppColors.textPrimary,
-                            backgroundColor: Colors.white24,
                           ),
                           const SizedBox(height: 8),
                           Text(
@@ -400,7 +391,8 @@ class _HomePageState extends State<HomePage>
                             ? '${r.label}: unavailable. ${r.reason}'
                             : '${r.label}: ${r.detected ? 'detected' : 'below threshold'} '
                                   '${(r.score! * 100).toStringAsFixed(1)}%'
-                                  '${r.warning.isEmpty ? '' : '. ${r.warning}'}',
+                                  '${r.warning.isEmpty ? '' : '. ${r.warning}'}'
+                                  '${_developerMode && r.why.isNotEmpty ? '\n  Why: ${r.why.join('\n  Why: ')}' : ''}',
                         style: AppTypography.bodySmall.copyWith(
                           color: AppColors.textPrimary,
                         ),
@@ -417,8 +409,8 @@ class _HomePageState extends State<HomePage>
                 ),
                 // Timing note (calibration, ModelBank); delete this Text to remove it.
                 Text(
-                  'Your first scan starts with about 10 seconds of calibration. '
-                  'Later scans show a result in about 5 seconds.',
+                  'Each scan starts with about 13 seconds of calibration; '
+                  'the first result follows a few seconds later.',
                   style: AppTypography.bodySmall.copyWith(
                     color: AppColors.textPrimary,
                   ),
@@ -760,27 +752,28 @@ class _HomePageState extends State<HomePage>
               ),
               const SizedBox(height: 16),
 
-              // Custom Tab Bar
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).extension<AppColorsExtension>()!.cardBackground,
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: Row(
-                    children: [
-                      if (_instantMode) _buildTabButton('Instant Scan', 0),
-                      _buildTabButton('Continuous Scan', 1),
-                    ],
+              // Custom Tab Bar; a build with one scan mode has nothing to switch.
+              if (_instantMode) ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).extension<AppColorsExtension>()!.cardBackground,
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: Row(
+                      children: [
+                        _buildTabButton('Instant Scan', 0),
+                        _buildTabButton('Continuous Scan', 1),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 24),
+                const SizedBox(height: 24),
+              ],
 
               _buildCamera(),
               const SizedBox(height: 32),
@@ -891,6 +884,53 @@ class _HomePageState extends State<HomePage>
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Labeled pill bar that eases between progress packets.
+class _ScanProgress extends StatelessWidget {
+  const _ScanProgress({required this.label, required this.value});
+  final String label;
+  final double value;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = AppTypography.bodySmall.copyWith(
+      color: AppColors.textPrimary,
+    );
+    final v = value.clamp(0.0, 1.0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: style.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+            Text('${(v * 100).round()}%', style: style),
+          ],
+        ),
+        const SizedBox(height: 6),
+        TweenAnimationBuilder<double>(
+          tween: Tween(end: v),
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+          builder: (context, shown, _) => ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: shown,
+              minHeight: 10,
+              color: AppColors.primary,
+              backgroundColor: Colors.white.withValues(alpha: .6),
+              semanticsLabel: label,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

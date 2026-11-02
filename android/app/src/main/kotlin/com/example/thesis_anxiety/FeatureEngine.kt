@@ -28,7 +28,7 @@ object LandmarkAdapter {
     val hands = listOf(0, 4, 8, 12, 20)
     val pose = listOf(0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28)
     val face = listOf(1, 13, 14, 33, 61, 105, 133, 145, 159, 263, 291, 334, 362, 374, 386, 468, 473)
-    val trackKeys = listOf("face", "body", "left_hand", "right_hand", "knees", "reference")
+    val trackKeys = listOf("face", "face_full", "body", "left_hand", "right_hand", "knees", "reference")
     /** Similarity transform in pixel space; float32 storage as in the training tables. */
     class Frame(val ox: Double, val oy: Double, angle: Double, val scale: Double, val width: Double, val height: Double) {
         private val c = cos(angle); private val s = sin(angle)
@@ -66,6 +66,8 @@ object LandmarkAdapter {
             val normalized = facePoints.map(frame::apply)
             store("face", normalized, face); keep(0, normalized.take(478))
             tracking["face"] = face.all { normalized[it].x.isFinite() && normalized[it].y.isFinite() }
+            // MediaPipe guesses landmarks outside the frame; face symptoms need the eyes, brows and mouth in view.
+            tracking["face_full"] = face.all { facePoints[it].x in 0.0..1.0 && facePoints[it].y in 0.0..1.0 }
             for (name in bs) row[name] = blendshapes[name.removePrefix("bs_")] ?: Double.NaN
             if (matrix?.size == 16) for (name in fm) {
                 val parts = name.split('_')
@@ -256,6 +258,7 @@ fun trackingReason(symptom: String, coverage: Map<String, Double>, fps: Double):
     fun enough(key: String) = (coverage[key] ?: 0.0) >= .5
     if (fps < 8) return "Too few processed frames. Improve lighting or use a faster phone."
     if (symptom in listOf("avoidant_gaze", "facial_tension", "fear") && !enough("face")) return "Keep your face in view"
+    if (symptom in listOf("avoidant_gaze", "facial_tension", "fear") && !enough("face_full")) return "Keep your whole face, including your eyes, in view"
     if (symptom in listOf("fidgeting", "hand_tremor", "knee_tremor", "heavy_breathing") && (!enough("body") || !enough("reference"))) return "Keep your shoulders and body in view"
     if (symptom == "hand_tremor" && !enough("left_hand") && !enough("right_hand")) return "Bring a hand into view"
     if (symptom == "knee_tremor" && !enough("knees")) return "Move back until both knees are visible"

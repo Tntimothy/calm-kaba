@@ -35,6 +35,20 @@ Java_com_example_thesis_1anxiety_NativeLgbm_predict(JNIEnv* env, jobject, jlong 
   }
   return result;
 }
+// Per-feature contributions (TreeSHAP, log-odds) followed by the bias term: count+1 values.
+extern "C" JNIEXPORT jdoubleArray JNICALL
+Java_com_example_thesis_1anxiety_NativeLgbm_contributions(JNIEnv* env, jobject, jlong id, jdoubleArray input) {
+  const int count = env->GetArrayLength(input);
+  std::vector<double> values(count), out(count + 1);
+  env->GetDoubleArrayRegion(input, 0, count, values.data());
+  int64_t size = 0;
+  if (!checked(env, LGBM_BoosterPredictForMat(reinterpret_cast<void*>(id), values.data(),
+      C_API_DTYPE_FLOAT64, 1, count, 1, C_API_PREDICT_CONTRIB, 0, -1,
+      "num_threads=1", &size, out.data()))) return nullptr;
+  jdoubleArray result = env->NewDoubleArray(size);
+  env->SetDoubleArrayRegion(result, 0, size, out.data());
+  return result;
+}
 extern "C" JNIEXPORT void JNICALL
 Java_com_example_thesis_1anxiety_NativeLgbm_free(JNIEnv* env, jobject, jlong id) {
   checked(env, LGBM_BoosterFree(reinterpret_cast<void*>(id)));

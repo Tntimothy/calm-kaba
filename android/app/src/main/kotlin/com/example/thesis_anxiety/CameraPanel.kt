@@ -314,7 +314,7 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
                         CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME
                 } catch (e: Throwable) { null }
                 event(id,mapOf("type" to "status", "message" to if (bank?.calibrating == true)
-                    "Calibrating: sit normally and breathe as usual for about 10 seconds"
+                    "Calibrating: sit normally and breathe as usual for about 13 seconds"
                     else "Hold position; the first result comes in about 5 seconds"))
             } catch (e: Throwable) { fail(id,e) }
         },ContextCompat.getMainExecutor(activity))
@@ -431,7 +431,7 @@ class CameraPanel(private val activity: MainActivity, private val emit: (Map<Str
             }
             if (snapshot != null) {
                 // The snapshot is a copy, so later frames cannot change this window.
-                val packet = bank!!.predict(snapshot.first,snapshot.second) { name, ns -> diag.stage(name,ns) }
+                val packet = bank!!.predict(snapshot.first,snapshot.second,diagnosticsEnabled) { name, ns -> diag.stage(name,ns) }
                 diag.predictions.tick()
                 // The newest frame ends the window; this age shows how stale a prediction is.
                 diag.age(sensorNs)?.let { diag.stage("windowAge",it) }

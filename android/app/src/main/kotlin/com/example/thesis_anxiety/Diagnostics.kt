@@ -63,7 +63,7 @@ class Diagnostics {
         "cropRotate" to "crop + rotate", "trackerWait" to "wait for trackers", "tracking" to "trackers (wall)", "adaptWindow" to "adapt + window", "features" to "window features",
         "classifiers" to "7 classifiers", "total" to "arrival → result", "captureToResult" to "capture → result",
         "overlayAge" to "overlay age at draw", "windowAge" to "window end → prediction")
-    private val tracked = linkedMapOf("face" to Rate(), "body" to Rate(), "left_hand" to Rate(), "right_hand" to Rate(), "knees" to Rate())
+    private val tracked = linkedMapOf("face" to Rate(), "face_full" to Rate(), "body" to Rate(), "left_hand" to Rate(), "right_hand" to Rate(), "knees" to Rate())
     @Volatile var input: Map<String, Any?> = emptyMap()
     @Volatile var delegates: Map<String, Any?> = emptyMap()
     @Volatile var exposure: Map<String, Any?> = emptyMap()

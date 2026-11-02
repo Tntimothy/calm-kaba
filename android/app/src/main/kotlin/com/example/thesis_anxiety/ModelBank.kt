@@ -3,7 +3,6 @@ package com.example.thesis_anxiety
 import org.json.JSONObject
 import java.io.Closeable
 import java.security.MessageDigest
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 import kotlin.math.sqrt
 
@@ -23,6 +22,7 @@ class ModelBank(val folder: String = "behavior_v7", read: (String) -> ByteArray)
     val engine: FeatureEngine
     private val models = mutableListOf<Model>()
     private val minCalibration = manifest.optJSONObject("personal")?.getInt("min_calibration_windows") ?: 0
+    private val maxCalibration = manifest.optJSONObject("personal")?.getInt("max_calibration_windows") ?: 0
     private val trackLimit = manifest.optJSONObject("personal")?.getDouble("track_limit") ?: 0.0
     init {
         val version = manifest.getString("feature_version")
@@ -43,7 +43,8 @@ class ModelBank(val folder: String = "behavior_v7", read: (String) -> ByteArray)
                 require(indices.size == engine.names.size && indices.toSet().size == indices.size)
                 // Model order: base features, personal_z_<base feature> for each personal index, then the availability flag.
                 personal.forEachIndexed { k, p -> require(schema.getString(base+k) == "personal_z_${schema.getString(p)}") }
-                require(personal.isEmpty() || schema.getString(schema.length()-1) == "personal_baseline_available" && minCalibration > 0)
+                require(personal.isEmpty() || schema.getString(schema.length()-1) == "personal_baseline_available" &&
+                    minCalibration in 1..maxCalibration)
                 val bytes = read("$folder/${m.getString("file")}")
                 require(sha256(bytes) == m.getString("model_sha256")) { "Model checksum failed" }
                 models.add(Model(m.getString("symptom"), m.getDouble("threshold"), NativeLgbm.load(String(bytes, Charsets.UTF_8)), indices,
@@ -53,18 +54,19 @@ class ModelBank(val folder: String = "behavior_v7", read: (String) -> ByteArray)
     }
 
     private val needsBaseline = models.any { it.personal.isNotEmpty() }
+    /** Each scan (one bank) calibrates afresh: light2.py keeps one baseline per participant and camera angle. */
+    private var calibrated = false
     private val calibration = mutableListOf<DoubleArray>()
     private var lastStart = Double.NaN
     /** Windows overlapping the calibration windows are skipped, as light2.py excludes them. */
     private var guardUntil = Double.NEGATIVE_INFINITY
     /** Per symptom: (median, scale) of its personal features, or null when too few calibration windows tracked it. */
     private var references = emptyMap<String, Pair<FloatArray, FloatArray>?>()
-    val calibrating get() = needsBaseline && baselines[runId] == null
-    init { baselines[runId]?.let(::useBaseline) }
+    val calibrating get() = needsBaseline && !calibrated
 
-    /** Calibration windows: trim plus [minCalibration] windows of 4 s, 2 s apart (9 s for three). */
+    /** Calibration windows: trim plus [maxCalibration] windows of 4 s, 2 s apart (13 s for five, as in training). */
     fun calibrationProgress(elapsed: Double): Double? =
-        if (calibrating) (elapsed/(1+4+2*(minCalibration-1))).coerceIn(0.0, 1.0) else null
+        if (calibrating) (elapsed/(1+4+2*(maxCalibration-1))).coerceIn(0.0, 1.0) else null
 
     internal fun useBaseline(windows: List<DoubleArray>) {
         val flag = listOf("face", "pose", "left_hand", "right_hand").map { engine.names.indexOf("f_${it}_detected_rate") }
@@ -95,7 +97,18 @@ class ModelBank(val folder: String = "behavior_v7", read: (String) -> ByteArray)
         return out
     }
 
-    fun predict(records: List<Observation>, start: Double, timing: (String, Long) -> Unit = { _, _ -> }): Map<String, Any> {
+    /** Developer view: the three inputs that pushed this detection up most (LightGBM contributions, log-odds). */
+    private fun topReasons(m: Model, x: DoubleArray): List<String> {
+        val c = NativeLgbm.contributions(m.handle,x)
+        fun name(i: Int) = when {
+            i < m.indices.size -> engine.names[m.indices[i]]
+            i < m.indices.size+m.personal.size -> "vs calibration: ${engine.names[m.personal[i-m.indices.size]]}"
+            else -> "calibration available"
+        }
+        return x.indices.sortedByDescending { c[it] }.take(3).map { String.format(java.util.Locale.US,"%s %+.2f",name(it),c[it]) }
+    }
+
+    fun predict(records: List<Observation>, start: Double, explain: Boolean = false, timing: (String, Long) -> Unit = { _, _ -> }): Map<String, Any> {
         val inside = records.filter { it.time >= start && it.time < start+4 }
         fun rate(frames: List<Observation>) = if (frames.size > 1) (frames.size-1)/(frames.last().time-frames.first().time) else 0.0
         val fps = rate(inside)
@@ -113,16 +126,16 @@ class ModelBank(val folder: String = "behavior_v7", read: (String) -> ByteArray)
             if (!(abs(start-lastStart-2) <= .5)) calibration.clear()
             lastStart = start
             calibration.add(features)
-            if (calibration.size >= minCalibration) {
-                baselines[runId] = calibration.toList(); useBaseline(calibration); guardUntil = start+4
-            }
+            if (calibration.size >= maxCalibration) { useBaseline(calibration); calibrated = true; guardUntil = start+4 }
         }
         val results = models.map { model ->
             val reason = if (calibratingNow) CALIBRATING else if (maxGap > .5) "Tracking was interrupted; collect a fresh window" else trackingReason(model.symptom,coverage,fps)
             val warning = if (model.symptom in listOf("hand_tremor","knee_tremor") && handFps < 20 && reason.isEmpty()) "Low FPS (${String.format(java.util.Locale.US,"%.1f",handFps)}); tremor score may be unreliable" else ""
-            val score = if (reason.isEmpty()) NativeLgbm.predict(model.handle,inputs(model,features)) else null
+            val x = if (reason.isEmpty()) inputs(model,features) else null
+            val score = x?.let { NativeLgbm.predict(model.handle,it) }
             mapOf("symptom" to model.symptom, "score" to score, "threshold" to model.threshold,
-                "reason" to reason, "warning" to warning)
+                "reason" to reason, "warning" to warning,
+                "why" to if (explain && x != null && score!! >= model.threshold) topReasons(model,x) else emptyList<String>())
         }
         timing("classifiers",System.nanoTime()-extracted)
         return mapOf("results" to results, "fps" to fps, "coverage" to coverage, "runId" to runId, "mode" to mode,
@@ -132,9 +145,6 @@ class ModelBank(val folder: String = "behavior_v7", read: (String) -> ByteArray)
     override fun close() { models.forEach { NativeLgbm.free(it.handle) }; models.clear() }
     companion object {
         const val CALIBRATING = "Calibrating"
-        /** Calibration windows per bundle, kept for later scans until the app process ends. */
-        private val baselines = ConcurrentHashMap<String, List<DoubleArray>>()
-        internal fun forgetBaselines() = baselines.clear()
         fun sha256(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
         /**

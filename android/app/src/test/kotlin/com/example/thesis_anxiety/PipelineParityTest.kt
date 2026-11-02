@@ -188,7 +188,10 @@ class PipelineParityTest {
                         if (expected[k].isNaN()) { assertTrue("${c.getString("symptom")} z[$k] should be missing",actual.isNaN()); continue }
                         zError = maxOf(zError,abs(actual-expected[k]))
                     }
-                    pError = maxOf(pError,abs(NativeLgbm.predict(m.handle,x)-probs[t]))
+                    val p = NativeLgbm.predict(m.handle,x)
+                    pError = maxOf(pError,abs(p-probs[t]))
+                    // Contributions plus bias add up to the log-odds of the prediction.
+                    assertEquals(kotlin.math.ln(p/(1-p)),NativeLgbm.contributions(m.handle,x).sum(),1e-6)
                 }
             }
             assertTrue("z error $zError",zError <= 1e-6)
@@ -196,30 +199,33 @@ class PipelineParityTest {
         }
     }
 
-    /** Three uninterrupted windows calibrate, the overlapping window is skipped, later scans reuse the baseline. */
-    @Test fun calibrationTimingAndReuse() {
-        ModelBank.forgetBaselines()
+    /** Five uninterrupted windows calibrate (as in training), the overlapping window is skipped, every scan recalibrates. */
+    @Test fun calibrationTiming() {
         val body = List(33) { Point3(.3+.01*it,.2+.02*it) }
         fun bank() = ModelBank("behavior_v7") { File(assets,it).readBytes() }
         fun fidgeting(b: ModelBank, records: List<Observation>, start: Double) =
-            ((b.predict(records,start)["results"] as List<*>).map { it as Map<*,*> }.first { it["symptom"] == "fidgeting" })
-        try {
+            ((b.predict(records,start,explain = true)["results"] as List<*>).map { it as Map<*,*> }.first { it["symptom"] == "fidgeting" })
+        run {
             bank().use { b ->
-                val records = List(30*18) { i ->
+                val records = List(30*22) { i ->
                     val hand = List(21) { j -> Point3(body[15].x+.005*j,body[15].y+.003*j+.002*kotlin.math.sin(i*1.7)) }
                     LandmarkAdapter.adapt(i/30.0,emptyList(),body,listOf(hand),emptyMap(),null,b.engine.bs,b.engine.fm,480,640)
                 }
                 assertEquals(0.0,b.calibrationProgress(0.0)!!,0.0)
+                assertEquals(.5,b.calibrationProgress(6.5)!!,0.0)
                 fidgeting(b,records,1.0)
                 fidgeting(b,records,5.0)  // not 2 s after the last window: calibration starts over
-                assertEquals(ModelBank.CALIBRATING,fidgeting(b,records,7.0)["reason"]); assertTrue(b.calibrating)
-                assertEquals(ModelBank.CALIBRATING,fidgeting(b,records,9.0)["reason"])  // third consecutive window
+                for (start in listOf(7.0,9.0,11.0)) assertEquals(ModelBank.CALIBRATING,fidgeting(b,records,start)["reason"])
+                assertTrue(b.calibrating)
+                assertEquals(ModelBank.CALIBRATING,fidgeting(b,records,13.0)["reason"])  // fifth consecutive window
                 assertFalse(b.calibrating); assertNull(b.calibrationProgress(9.0))
-                assertEquals(ModelBank.CALIBRATING,fidgeting(b,records,11.0)["reason"])  // overlaps the calibration windows
-                assertNotNull(fidgeting(b,records,13.0)["score"])
-                bank().use { next -> assertFalse(next.calibrating); assertNotNull(fidgeting(next,records,1.0)["score"]) }
+                assertEquals(ModelBank.CALIBRATING,fidgeting(b,records,15.0)["reason"])  // overlaps the calibration windows
+                val scored = fidgeting(b,records,17.0)
+                assertNotNull(scored["score"])
+                assertEquals(if ((scored["score"] as Double) >= (scored["threshold"] as Double)) 3 else 0,(scored["why"] as List<*>).size)
+                bank().use { next -> assertTrue(next.calibrating); assertEquals(ModelBank.CALIBRATING,fidgeting(next,records,1.0)["reason"]) }
             }
-        } finally { ModelBank.forgetBaselines() }
+        }
     }
     @Test fun handsOnEveryOtherFrameKeepFullCoverageAndFeatures() {
         val body = List(33) { Point3(.3+.01*it,.2+.02*it) }

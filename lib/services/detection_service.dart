@@ -20,16 +20,21 @@ class BehaviorResult {
   final double threshold;
   final String reason;
   final String warning;
+
+  /// Developer diagnostics: inputs that pushed this window's raw score up most.
+  final List<String> why;
   BehaviorResult.fromMap(Map<dynamic, dynamic> map)
     : symptom = map['symptom'] as String,
       score = (map['score'] as num?)?.toDouble(),
       threshold = (map['threshold'] as num).toDouble(),
       reason = map['reason'] as String? ?? '',
-      warning = map['warning'] as String? ?? '';
+      warning = map['warning'] as String? ?? '',
+      why = (map['why'] as List?)?.cast<String>() ?? const [];
   BehaviorResult._smoothed(BehaviorResult raw, this.score, this.reason)
     : symptom = raw.symptom,
       threshold = raw.threshold,
-      warning = raw.warning;
+      warning = raw.warning,
+      why = raw.why;
   String get label => symptomLabels[symptom] ?? symptom;
   bool get detected => score != null && score!.isFinite && score! >= threshold;
 }

@@ -85,6 +85,7 @@
  ],
  "personal": {
   "min_calibration_windows": 3,
+  "max_calibration_windows": 5,
   "track_limit": 0.6,
   "smoothing_windows": 3,
   "method": "light2.robust_z: median/MAD (std fallback) z-score clipped to [-8, 8]"

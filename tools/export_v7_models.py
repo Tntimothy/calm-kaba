@@ -31,14 +31,20 @@ def light2(lead):
 
 
 def fixture(bundles, names, l2):
-    """Three calibration windows and four targets; one calibration window has no hands."""
+    """Five calibration windows (as in training) and four targets.
+
+    Hands are lost in three calibration windows, so hand symptoms keep only two references and
+    get no baseline; the pose is lost in one, so pose symptoms use four of the five windows.
+    """
     rng = np.random.default_rng(7)
     track = [names.index(f) for f in FLAGS]
-    X = rng.normal(0, 1, (7, len(names))).astype(np.float32) * rng.choice([.01, 1, 30], len(names)).astype(np.float32)
+    cal = l2.MAX_CALIBRATION_WINDOWS
+    X = rng.normal(0, 1, (cal + 4, len(names))).astype(np.float32) * rng.choice([.01, 1, 30], len(names)).astype(np.float32)
     X[rng.random(X.shape) < .05] = np.nan
     X[:, track] = 1.0
-    X[1, track[2:]] = 0.0  # hands lost in one calibration window: hand symptoms keep only 2 references
-    X[5, :] = X[0] + np.float32(.001)  # a target close to the baseline
+    X[1:4, track[2:]] = 0.0
+    X[2, track[1]] = 0.5
+    X[cal + 2, :] = X[0] + np.float32(.001)  # a target close to the baseline
     cases = []
     for s in SYMPTOMS:
         b = bundles[s]
@@ -46,16 +52,16 @@ def fixture(bundles, names, l2):
         t = X[:, track]
         good = {"facial_tension": t[:, 0], "fear": t[:, 0], "avoidant_gaze": t[:, 0], "heavy_breathing": t[:, 1],
                 "knee_tremor": t[:, 1]}.get(s, np.maximum(t[:, 2], t[:, 3])) >= l2.TRACK_LIMIT
-        ref = X[:3][good[:3]][:, ids]
+        ref = X[:cal][good[:cal]][:, ids]
         if len(ref) >= l2.MIN_CALIBRATION_WINDOWS:
-            z, available = l2.robust_z(X[3:, ids], ref), 1.0
+            z, available = l2.robust_z(X[cal:, ids], ref), 1.0
         else:
             z, available = np.full((4, len(ids)), np.nan, np.float32), 0.0
-        rows = np.column_stack([X[3:], z, np.full(4, available, np.float32)]).astype(np.float32)
+        rows = np.column_stack([X[cal:], z, np.full(4, available, np.float32)]).astype(np.float32)
         cases.append(dict(symptom=s, available=available, probabilities=b["model"].predict_proba(rows)[:, 1].tolist(),
                           z=[[None if not np.isfinite(v) else float(v) for v in r] for r in z]))
     clean = lambda r: [None if not np.isfinite(v) else float(v) for v in r]
-    return dict(calibration=[clean(r) for r in X[:3]], targets=[clean(r) for r in X[3:]], cases=cases)
+    return dict(calibration=[clean(r) for r in X[:cal]], targets=[clean(r) for r in X[cal:]], cases=cases)
 
 
 def main():
@@ -85,7 +91,8 @@ def main():
     manifest = dict(run_id="lead_2026-11-02_lgbm_personal_weighted", feature_version="v6", mode="vs_control",
                     source_repo="Vinzy0/anxiety_detection_prototype", source_commit=commit, window=v6["window"],
                     bs_names=v6["bs_names"], fm_names=v6["fm_names"], personal=dict(
-                        min_calibration_windows=l2.MIN_CALIBRATION_WINDOWS, track_limit=l2.TRACK_LIMIT,
+                        min_calibration_windows=l2.MIN_CALIBRATION_WINDOWS,
+                        max_calibration_windows=l2.MAX_CALIBRATION_WINDOWS, track_limit=l2.TRACK_LIMIT,
                         smoothing_windows=l2.SMOOTH_K,
                         method="light2.robust_z: median/MAD (std fallback) z-score clipped to [-8, 8]"),
                     models=models, note="Trees unchanged from light2.py's personal_weighted joblib bundles (51 participants).")
