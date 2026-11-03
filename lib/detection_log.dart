@@ -57,13 +57,13 @@ class _DetectionLogPageState extends State<DetectionLogPage> {
         border: Border.all(color: AppColors.arden, width: 4),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(12.0),
         child: Row(
           children: [
             Container(
               alignment: Alignment.center,
-              width: 140, // Increased size to fill space better
-              height: 140,
+              width: 110,
+              height: 110,
               child: Image.asset(
                 'assets/images/headerFish.png',
                 fit: BoxFit.contain,
@@ -129,12 +129,9 @@ class _DetectionLogPageState extends State<DetectionLogPage> {
     );
   }
 
+  // The log page looks the same in both modes: white cards, pink names, grey dates.
   Widget _buildLogItem(LogEntry log) {
     final dateStr = DateFormat('MMM d, h:mm a').format(log.timestamp.toLocal());
-    // Text must contrast with the card: pink card in light mode, white card in dark mode.
-    final textColor = Theme.of(context).brightness == Brightness.light
-        ? Colors.white
-        : AppColors.textPrimary;
 
     // Tapping an entry opens that symptom's information.
     return GestureDetector(
@@ -143,9 +140,7 @@ class _DetectionLogPageState extends State<DetectionLogPage> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.light
-          ? AppColors.tertiary
-          : Colors.white,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -167,12 +162,12 @@ class _DetectionLogPageState extends State<DetectionLogPage> {
               children: [
                 Text(
                   log.symptom,
-                  style: AppTypography.titleMedium.copyWith(color: textColor),
+                  style: AppTypography.titleMedium.copyWith(color: AppColors.primary),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   dateStr,
-                  style: AppTypography.bodySmall.copyWith(color: textColor),
+                  style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
                 ),
               ],
             ),
@@ -186,7 +181,8 @@ class _DetectionLogPageState extends State<DetectionLogPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      // Lime in both modes, as designed.
+      backgroundColor: const Color(0xFFC5FF7A),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24.0),

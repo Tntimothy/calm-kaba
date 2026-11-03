@@ -275,8 +275,9 @@ class _HomePageState extends State<HomePage>
                       ? () => _startDetection(mode)
                       : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.tertiary,
-                    foregroundColor: AppColors.textPrimary,
+                    // Darker pink keeps white text readable (about 4.2:1).
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,
                       vertical: 12,
@@ -285,11 +286,11 @@ class _HomePageState extends State<HomePage>
                   child: Text(_isDetecting ? 'Stop' : 'Scan Now'),
                 ),
                 const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(
-                    Icons.help_outline,
-                    color: AppColors.textPrimary,
+                IconButton.filled(
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppColors.primary,
                   ),
+                  icon: const Icon(Icons.question_mark, color: Colors.white),
                   tooltip: 'Disclaimer',
                   onPressed: () => Navigator.pushNamed(context, '/disclaimer'),
                 ),
