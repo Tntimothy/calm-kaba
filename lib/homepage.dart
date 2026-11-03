@@ -7,8 +7,14 @@ import 'services/navigation_observer.dart';
 import 'components/camera_preview.dart';
 import 'components/diagnostics_panel.dart';
 
+/// Build with --dart-define=USER_BUILD=true for the app given to users:
+/// continuous scan only, a detection count instead of names and scores (the
+/// history log keeps the names), no developer tools, and a GPU setting.
+const _userBuild = bool.fromEnvironment('USER_BUILD');
+
 /// Build with --dart-define=INSTANT_MODE=false for the continuous-only app.
-const _instantMode = bool.fromEnvironment('INSTANT_MODE', defaultValue: true);
+const _instantMode =
+    !_userBuild && bool.fromEnvironment('INSTANT_MODE', defaultValue: true);
 
 class HomePage extends StatefulWidget {
   final bool active;
@@ -48,6 +54,12 @@ class _HomePageState extends State<HomePage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Users get the ADPF 33.3 ms (30 fps) work target; the 30 fps camera lock is the default.
+    if (_userBuild) {
+      unawaited(
+        _detectionService.setOption('hintTarget', _hintTargetMs = 33.3),
+      );
+    }
     _updateSubscription = _detectionService.updates.listen((packet) {
       if (!mounted ||
           (!_isDetecting &&
@@ -79,6 +91,10 @@ class _HomePageState extends State<HomePage>
             final count = _results.where((r) => r.detected).length;
             _status = calibrating
                 ? 'Calibrating: sit normally and breathe as usual'
+                : _userBuild && count > 0
+                ? '$count detected'
+                : _userBuild && _results.any((r) => r.score != null)
+                ? 'Nothing detected'
                 : count > 0
                 ? '$count behavioral model detection${count == 1 ? '' : 's'} in this window'
                 : _results.any((r) => r.score != null)
@@ -363,19 +379,35 @@ class _HomePageState extends State<HomePage>
                                 0,
                           ),
                           const SizedBox(height: 8),
-                          Text(
-                            'Face: ${tracking['face'] == true ? 'tracked' : 'unavailable'}  '
-                            'Body: ${tracking['body'] == true ? 'tracked' : 'unavailable'}'
-                            '${_fps == null ? '' : '  ${_fps!.toStringAsFixed(1)} FPS'}',
-                            style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.textPrimary,
+                          if (!_userBuild)
+                            Text(
+                              'Face: ${tracking['face'] == true ? 'tracked' : 'unavailable'}  '
+                              'Body: ${tracking['body'] == true ? 'tracked' : 'unavailable'}'
+                              '${_fps == null ? '' : '  ${_fps!.toStringAsFixed(1)} FPS'}',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.textPrimary,
+                              ),
                             ),
-                          ),
                         ],
                       );
                     },
                   ),
-                if (_results.isNotEmpty) ...[
+                // Users see position tips only; names and scores go to the history log.
+                if (_userBuild)
+                  for (final tip in {
+                    for (final r in _results)
+                      if (r.score == null && r.reason.isNotEmpty) r.reason,
+                  })
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        tip,
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                if (!_userBuild && _results.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Text(
                     'Latest four-second window',
@@ -415,25 +447,38 @@ class _HomePageState extends State<HomePage>
                     color: AppColors.textPrimary,
                   ),
                 ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Developer diagnostics',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.textPrimary,
+                if (_userBuild)
+                  _developerSwitch(
+                    'Enable GPU acceleration (faster; applies to the next scan)',
+                    _gpuTasks.isNotEmpty,
+                    (value) {
+                      setState(() {
+                        _gpuTasks.clear();
+                        if (value) _gpuTasks.addAll(['face', 'pose', 'hands']);
+                      });
+                      unawaited(_detectionService.setGpuTasks(_gpuTasks));
+                    },
+                  ),
+                if (!_userBuild)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Developer diagnostics',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.textPrimary,
+                          ),
                         ),
                       ),
-                    ),
-                    Switch(
-                      value: _developerMode,
-                      onChanged: (value) {
-                        setState(() => _developerMode = value);
-                        unawaited(_detectionService.setDiagnostics(value));
-                      },
-                    ),
-                  ],
-                ),
+                      Switch(
+                        value: _developerMode,
+                        onChanged: (value) {
+                          setState(() => _developerMode = value);
+                          unawaited(_detectionService.setDiagnostics(value));
+                        },
+                      ),
+                    ],
+                  ),
                 if (_developerMode)
                   Row(
                     children: [
