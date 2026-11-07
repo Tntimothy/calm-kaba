@@ -2,7 +2,7 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera.any" android:required="true" />
     <application
-        android:label="thesis_anxiety"
+        android:label="Calm Kaba"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

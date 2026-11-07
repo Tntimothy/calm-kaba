@@ -32,20 +32,22 @@ class _DetectionLogPageState extends State<DetectionLogPage> {
     });
   }
 
+  // The dark theme's default SnackBar is white text on white, so set both.
+  void _showMessage(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: AppColors.textPrimary,
+        content: Text(text, style: const TextStyle(color: Colors.white)),
+      ),
+    );
+  }
+
   Future<void> _exportLogs() async {
     try {
       final path = await _logService.exportLogs();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Logs saved on this phone: $path')),
-        );
-      }
+      if (mounted) _showMessage('Logs saved on this phone: $path');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error exporting logs: $e')),
-        );
-      }
+      if (mounted) _showMessage('Error exporting logs: $e');
     }
   }
 

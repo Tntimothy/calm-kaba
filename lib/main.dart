@@ -29,7 +29,7 @@ class MyApp extends StatelessWidget {
       valueListenable: AppTheme.themeModeNotifier,
       builder: (context, themeMode, child) {
         return MaterialApp(
-          title: 'Thesis Anxiety App',
+          title: 'Calm Kaba',
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: themeMode,
