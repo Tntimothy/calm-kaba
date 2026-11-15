@@ -2,6 +2,7 @@ class SymptomData {
   static final Map<String, Map<String, dynamic>> data = {
     'Hand Tremor': {
       'desc': 'Shaking of hands caused by tensed muscles',
+      'summary': 'Your hands may shake when you feel stressed. Your body releases adrenaline, which tightens your muscles. It is harmless and usually stops once you calm down.',
       'overview': [
         'Hand tremors (shaky hands), during anxiety episodes are a type of psychogenic tremor, a type of functional movement disorder. Not to be confused with organic movement disorders such as Parkinson’s and Huntington’s disease that causes neurodegeneration (gradual brain damage), psychogenic tremors are harmless irregularities in movement caused by excessive stress, trauma, and/or anxiety. This may be observed as sudden uncontrolled shaking and jerks that suddenly appear when experiencing excessive stress, which goes away once the individual calms down. This symptom often does not manifest in children below the age of 10. For adults, psychogenic tremors such as excessively shaky hands are often experienced in their non-dominant limb (arms, legs, and hands).',
         'In high-stress situations ranging from excitement to threat (anxiety), our adrenal glands produce a hormone called epinephrine, more commonly known as adrenaline. The shakiness in high-stress situations is produced due to the adrenaline’s effect on the body, where our body gets ready to react to environmental danger, also known as "fight or flight" response. This increases the body’s blood pressure, heart rate, and muscle tension, which may make us feel nervous and shaky.'
@@ -19,6 +20,7 @@ class SymptomData {
     },
     'Knee Tremor': {
       'desc': 'Knee rocking when sitting down',
+      'summary': 'Your knees may shake or bounce while you sit. Your body is ready to move and lets out the extra energy through your legs. It often eases when you relax.',
       'overview': [
         'Knee tremors (shaky knees and rocking of knees when sitting) are physical manifestations of anxiety. Shaking of knees is a type of functional movement disorder, called a psychogenic tremor. This occurs when a person experiences anxiety due to the body’s production of adrenaline during perceived threat. During such situations, the body redistributes blood flow to primary muscle groups, such as the arms and legs, to prepare for a fight-or-flight response. Tremors occur when the energy that is redirected to these muscle groups are not used up, causing oscillations (shaking). Knee tremors during anxiety are often accompanied by weakness of lower limbs, or "jelly" legs. This functional movement disorder is often characterized as a psychogenic gait disorder. These two experiences often manifest in pairs because as high amounts of energy are expended towards our legs, these muscle groups will begin to get tired faster, causing weakness and therefore, shaking, while trying to hold our weights.',
         'Knee rocking is another irregularity of movement that may be observed when experiencing anxiety. When sitting down and the body secretes adrenaline due to perceived threat or anxiety, the individual does not have the capacity to release the excess energy through a fight-or-flight response, similar to knee tremors. So instead, the body attempts to release this energy by rocking or bouncing our knees. Unlike knee tremors, however, this action may not be a body’s direct response to anxiety, but as a self-soothing mechanism. This is a form of psychomotor agitation: a state of restlessness that results in repetitive movements due to tension. This is a common symptom to various mental health conditions, such as severe generalized anxiety disorder (GAD), and post-traumatic stress disorder (PTSD).'
@@ -34,6 +36,7 @@ class SymptomData {
     },
     'Heavy Breathing': {
       'desc': 'Rapid breaths caused by spiked heartrate',
+      'summary': 'You may be breathing faster or deeper than usual. When you feel anxious, your heart speeds up and your body asks for more air. Slow breathing can help.',
       'overview': [
         'During an anxiety episode, the amygdala perceives a threat and starts sending out adrenaline to prepare for a fight-or-flight response. This will make you feel as though you need to breathe more, as the body is preparing for an intense physical exertion as a response to the threat. In real threatening situations, this works because the rapid breathing allows more oxygen to travel to your muscles, preventing them from giving out too early.',
         'However, when the threat isn’t real like when you are experiencing anxiety, the tightness of your chest in preparation for the physical exertion that does not come creates a discomfort that the brain misinterprets as lack of oxygen. This feeling of shortness of breath without actually running out of oxygen is called dyspnea. When this happens, the brain signals the body to start breathing more rapidly to increase oxygen intake. Hyperventilation is this rapid, shallow breathing that makes you release more carbon dioxide than necessary, creating a true need for air. Due to the low levels of carbon dioxide in your system, your chest will start to feel tight, which causes a loop of dyspnea and hyperventilation.'
@@ -56,6 +59,7 @@ class SymptomData {
     },
     'Fidgeting': {
       'desc': 'Acts of unease (ex. fiddling with fingers)',
+      'summary': 'You may be moving your hands or body a lot, like playing with your fingers. This is your body trying to let out tension and calm itself.',
       'overview': [
         'Fidgeting is an action that is commonly performed by everyone, even those who are not experiencing anxiety. In normal situations, fidgeting is an act that helps retain our attention and focus. Such actions are subjective–different people fidget in different ways (e.g., clicking pens, shifting sitting position, joint cracking, etc.). In individuals experiencing anxiety, however, fidgeting occurs at a higher frequency, that is, more often, and at a higher intensity. It may sometimes even affect the person’s daily life.',
         'When a person experiences anxiety, the amygdala releases adrenaline to prepare the body for dangerous encounters, preparing the body for a fight-or-flight response. Fidgeting is a result of the fight-or-flight response because your brain thinks that you are in a dangerous situation, causing you discomfort when you are still. Fidgeting is a response to the discomfort and restlessness that you feel during those situations, because it temporarily releases some of the discomfort caused by the anxiety.',
@@ -78,6 +82,7 @@ class SymptomData {
     },
     'Avoidant Gaze': {
       'desc': 'Inability to maintain eye contact.',
+      'summary': 'You may be looking away instead of keeping eye contact. When you feel uneasy, looking away can feel safer. It is a common reaction to stress.',
       'overview': [
         'Avoidant gaze is a behavioral response to distress experienced in social situations, most often displayed by individuals suffering from social anxiety disorder. This is the act of looking away from the other person’s face, particularly avoiding eye contact. In such situations, there are two courses that the person experiencing anxiety behaves in.',
         'First is hypervigilance, where the fear of being perceived, judged, and scrutinized by another person leads to them becoming hyper-aware of social cues, searching for any sign of judgement from the other person. Once their hypervigilant mind identifies a cue, that is when they begin to avert their gaze as an act of “escape”. In other cases, avoidant gaze tends to be performed by an individual with anxiety because the connection formed through eye-contact is perceived as evaluative and socially threatening.',
@@ -100,6 +105,7 @@ class SymptomData {
     },
     'Facial Tension': {
       'desc': 'Contractions and tightness along the facial features due to muscle tension.',
+      'summary': 'The muscles in your face may be tight, like around your eyes, jaw, or forehead. Your face can tense up when you feel stressed or worried.',
       'overview': [
         'Muscle tension is the most common physical symptom of anxiety. It is the body’s physical response from anxiety-induced stress. This occurs in people suffering from anxiety when the amygdala falsely perceives threat and prepares the body for a fight-or-flight response.',
         'One of these responses is the contraction of muscles, which, in normal situations where the individual truly is in danger, is useful because the tensed muscles result in higher resistance to attacks. However, when threat is perceived often such as when an individual has anxiety, the fight-or-flight response becomes prolonged. This state is known as the stress-response hyperstimulation.',
@@ -122,6 +128,7 @@ class SymptomData {
     },
     'Fear': {
       'desc': 'Overwhelming emotional response to perceived danger.',
+      'summary': 'Your face may be showing fear, like wide eyes or raised eyebrows. This is your body reacting to something it sees as a threat, even when you are safe.',
       'overview': [
         'Fear-induced anxiety is caused by a misperception of danger. Such feelings are due to the impending sense of doom, that is, anticipation of potential danger. Though it is an emotion, fear can be observed through our facial expression, even if the fear is only caused by anxiety.',
         'When the amygdala misclassifies normal, neutral events and thoughts as a real threat, one of the responses is to widen our eyes, accompanied by raised eyebrows. Widened eyes increase our visual field. This is an evolutionary trait with the purpose of increasing our peripheral vision to more efficiently scan for any potential danger.',

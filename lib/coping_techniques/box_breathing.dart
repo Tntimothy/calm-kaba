@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../theme/design_system.dart';
+import 'breathing_regulation.dart' show phaseSecond;
 
 class BoxBreathingPage extends StatefulWidget {
   const BoxBreathingPage({super.key});
@@ -11,7 +12,6 @@ class BoxBreathingPage extends StatefulWidget {
 
 class _BoxBreathingPageState extends State<BoxBreathingPage> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
   
   bool _isRunning = false;
   int _currentPhase = 0; // 0=Inhale, 1=Hold, 2=Exhale, 3=Hold
@@ -30,16 +30,6 @@ class _BoxBreathingPageState extends State<BoxBreathingPage> with SingleTickerPr
       duration: const Duration(seconds: 16),
     );
 
-    // Expansion (0.0 to 0.25)
-    // Hold (0.25 to 0.50)
-    // Contraction (0.50 to 0.75)
-    // Hold (0.75 to 1.0)
-    _scaleAnimation = TweenSequence([
-      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.8), weight: 25.0),
-      TweenSequenceItem(tween: Tween<double>(begin: 1.8, end: 1.8), weight: 25.0),
-      TweenSequenceItem(tween: Tween<double>(begin: 1.8, end: 1.0), weight: 25.0),
-      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.0), weight: 25.0),
-    ]).animate(_controller);
 
     _controller.addListener(_updatePhase);
     _controller.addStatusListener(_onAnimationStatus);
@@ -188,22 +178,6 @@ class _BoxBreathingPageState extends State<BoxBreathingPage> with SingleTickerPr
     super.dispose();
   }
 
-  Widget _buildImagePlaceholder() {
-    return SizedBox(
-      width: 140,
-      height: 140,
-      child: Center(
-        child: SvgPicture.asset(
-          'assets/images/pufferFish.svg',
-          width: 140,
-          height: 140,
-          fit: BoxFit.contain,
-          alignment: Alignment.center,
-        ),
-      ),
-    );
-  }
-
   Widget _buildPhaseBox(String title, String duration, bool isActive, bool isLightMode) {
     return Expanded(
       flex: isActive ? 11 : 10,
@@ -341,18 +315,56 @@ class _BoxBreathingPageState extends State<BoxBreathingPage> with SingleTickerPr
               ),
             ),
             
-            // Animated Placeholder Image
+            // The fish swims one side of the square per phase; the number counts that phase's seconds.
             Expanded(
-              child: Center(
-                child: AnimatedBuilder(
-                  animation: _scaleAnimation,
-                  builder: (context, child) {
-                    return Transform.scale(
-                      scale: _scaleAnimation.value,
-                      child: _buildImagePlaceholder(),
-                    );
-                  }
-                ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  const fish = 64.0;
+                  final side = (constraints.biggest.shortestSide - fish).clamp(0.0, 240.0);
+                  return Center(
+                    child: AnimatedBuilder(
+                      animation: _controller,
+                      builder: (context, _) {
+                        final t = _controller.value;
+                        final i = (t * 4).floor().clamp(0, 3);
+                        // Inhale up the left, hold across the top, exhale down the right, hold along the bottom.
+                        final corners = [Offset(0, side), Offset.zero, Offset(side, 0), Offset(side, side), Offset(0, side)];
+                        final at = Offset.lerp(corners[i], corners[i + 1], t * 4 - i)!;
+                        return SizedBox.square(
+                          dimension: side,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Positioned.fill(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: AppColors.pinkCarnation, width: 4),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                              if (t > 0)
+                                Center(
+                                  child: Text(
+                                    '${phaseSecond(t * 16, const [4, 4, 4, 4])}',
+                                    style: AppTypography.displaySmall.copyWith(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              Positioned(
+                                left: at.dx - fish / 2,
+                                top: at.dy - fish / 2,
+                                child: SvgPicture.asset('assets/images/pufferFish.svg', width: fish, height: fish),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
               ),
             ),
             

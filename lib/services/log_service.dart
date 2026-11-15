@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:intl/intl.dart';
+import 'symptom_data.dart';
 
 /// Saves a text file on this phone where the user can open it
 /// (Download/Calm Kaba on Android) and returns where it went.
@@ -172,19 +174,69 @@ class LogService {
 
   /// Returns where the file was saved.
   Future<String> exportLogs() async {
-    final logs = await getLogs();
-    final buffer = StringBuffer();
-    buffer.writeln("--- Detection Logs ---");
-    for (var log in logs) {
-      buffer.writeln(
-        '${log.timestamp.toLocal()} - Behavioral model detection: ${log.symptom}'
-        '${log.score == null ? '' : ' | score ${log.score} | threshold ${log.threshold} | ${log.modelRun}'}',
-      );
-    }
-
+    final now = DateTime.now();
     return saveTextFile(
-      'detection_logs_${fileStamp(DateTime.now())}.txt',
-      buffer.toString(),
+      'calm_kaba_results_${fileStamp(now)}.txt',
+      buildReport(await getLogs(), now),
     );
   }
+
+}
+
+/// The downloaded results: a plain-language summary first, then every detection by day.
+String buildReport(List<LogEntry> logs, DateTime now) {
+  final day = DateFormat('MMMM d, y');
+  final time = DateFormat('h:mm a');
+  final sorted = [...logs]..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+  final counts = <String, int>{};
+  for (final log in sorted) {
+    counts[log.symptom] = (counts[log.symptom] ?? 0) + 1;
+  }
+  final ranked = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+  final out = StringBuffer()
+    ..writeln('CALM KABA - YOUR SCANNING RESULTS')
+    ..writeln('Saved on ${day.format(now)} at ${time.format(now)}')
+    ..writeln()
+    ..writeln('This report lists the signs Calm Kaba noticed during your scans.')
+    ..writeln('It is not a diagnosis. If anxiety is affecting your daily life,')
+    ..writeln('please reach out to a counselor or mental health professional.')
+    ..writeln();
+  if (sorted.isEmpty) {
+    out.writeln('No detections have been saved yet.');
+    return out.toString();
+  }
+  out
+    ..writeln('SUMMARY')
+    ..writeln('From ${day.format(sorted.first.timestamp)} to ${day.format(sorted.last.timestamp)}, '
+        'Calm Kaba noticed ${sorted.length} sign${sorted.length == 1 ? '' : 's'}:');
+  for (final e in ranked) {
+    out.writeln('  - ${e.key}: ${e.value} time${e.value == 1 ? '' : 's'}');
+  }
+  out
+    ..writeln()
+    ..writeln('WHAT THESE MEAN');
+  for (final e in ranked) {
+    final summary = SymptomData.data[e.key]?['summary'];
+    if (summary != null) {
+      out
+        ..writeln('${e.key}: $summary')
+        ..writeln();
+    }
+  }
+  out.writeln('Try the Coping Techniques in the app when you notice these signs.');
+  out
+    ..writeln()
+    ..writeln('ALL DETECTIONS');
+  String? lastDay;
+  for (final log in sorted) {
+    final d = day.format(log.timestamp);
+    if (d != lastDay) {
+      out
+        ..writeln()
+        ..writeln(d);
+      lastDay = d;
+    }
+    out.writeln('  ${time.format(log.timestamp).padLeft(8)}  ${log.symptom}');
+  }
+  return out.toString();
 }

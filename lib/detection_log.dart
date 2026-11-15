@@ -117,7 +117,7 @@ class _DetectionLogPageState extends State<DetectionLogPage> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
-          'Log',
+          'Scanning Log',
           style: AppTypography.titleMedium.copyWith(color: AppColors.arden),
         ),
         GestureDetector(

@@ -117,7 +117,7 @@ class _SymptomListPageState extends State<SymptomListPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Universal Preface Note
+                  // Summary in plain words; the Overview below has the detail.
                   Container(
                     padding: const EdgeInsets.all(12),
                     margin: const EdgeInsets.only(bottom: 16),
@@ -126,10 +126,7 @@ class _SymptomListPageState extends State<SymptomListPage> {
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: AppColors.elizabeth),
                     ),
-                    child: Text(
-                      'Individuals suffering from anxiety are stuck at a constant state of perceiving events, sensations, perceptions, thoughts, and even the unknown, at a higher baseline for threat than normal. One of the roles of amygdala, a part of our brain, is perception of threats. When threat is perceived, the amygdala triggers physiological stress responses (anxiety, fear, increased heart rate), before the realness of the threat is even evaluated. The prefrontal cortex is meant to provide emotional regulation when the amygdala fires up, and allows you to employ coping techniques. In people suffering from clinical anxiety, the functional connection between these two parts of the brain are significantly weaker. The prefrontal cortex for such individuals are unable to effectively regulate the threats perceived by the amygdala. This results in anxiety, as normal situations begin to feel threatening without the regulation of the prefrontal cortex.',
-                      style: AppTypography.bodySmall.copyWith(fontStyle: FontStyle.italic),
-                    ),
+                    child: Text(data['summary'], style: AppTypography.bodyMedium),
                   ),
 
                   // Overview Section

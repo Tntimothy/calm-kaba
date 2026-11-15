@@ -265,9 +265,21 @@ class _HomePageState extends State<HomePage>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
             child: Row(
               children: [
+                Expanded(
+                  child: Text(
+                    mode == DetectionMode.instant
+                        ? 'Instant Scan'
+                        : 'Continuous Scan',
+                    style: AppTypography.headlineSmall.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 ElevatedButton(
                   onPressed: _isDetecting
                       ? _stopDetection
@@ -295,6 +307,16 @@ class _HomePageState extends State<HomePage>
                   onPressed: () => Navigator.pushNamed(context, '/disclaimer'),
                 ),
               ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: Text(
+              'Each scan starts with about 13 seconds of calibration; '
+              'the first result follows a few seconds later.',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textPrimary,
+              ),
             ),
           ),
           AspectRatio(
@@ -343,15 +365,6 @@ class _HomePageState extends State<HomePage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  mode == DetectionMode.instant
-                      ? 'Instant Scan'
-                      : 'Continuous Scan',
-                  style: AppTypography.headlineSmall.copyWith(
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 8),
                 Text(
                   _status,
                   style: AppTypography.bodyMedium.copyWith(
@@ -436,14 +449,6 @@ class _HomePageState extends State<HomePage>
                 const SizedBox(height: 12),
                 Text(
                   'Behavioral model scores are not a diagnosis. Video is not saved.',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                // Timing note (calibration, ModelBank); delete this Text to remove it.
-                Text(
-                  'Each scan starts with about 13 seconds of calibration; '
-                  'the first result follows a few seconds later.',
                   style: AppTypography.bodySmall.copyWith(
                     color: AppColors.textPrimary,
                   ),
@@ -836,14 +841,14 @@ class _HomePageState extends State<HomePage>
               ),
               const SizedBox(height: 8),
               _buildInsightCard(
+                'Scanning Log',
+                'See what your scans detected and download your results.',
+                '/detectionLog',
+              ),
+              _buildInsightCard(
                 'Symptoms Info',
                 'Get more detailed info of the symptoms you can detect through this app.',
                 '/symptomList',
-              ),
-              _buildInsightCard(
-                'Your Log',
-                'This is where you find your detection history.',
-                '/detectionLog',
               ),
 
               const SizedBox(height: 32),

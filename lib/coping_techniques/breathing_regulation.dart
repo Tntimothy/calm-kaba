@@ -289,6 +289,25 @@ class _BreathingRegulationPageState extends State<BreathingRegulationPage> with 
               ),
             ),
             
+            // Seconds into the current phase: 1, 2, 3... then restarts at the next phase.
+            AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) => SizedBox(
+                height: 48,
+                width: double.infinity,
+                child: _controller.value == 0
+                    ? null
+                    : Text(
+                        '${phaseSecond(_controller.value * 19, const [4, 7, 8])}',
+                        textAlign: TextAlign.center,
+                        style: AppTypography.headlineMedium.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+              ),
+            ),
+
             // Instruction Texts (Centered perfectly)
             SizedBox(
               height: 70, // Slightly reduced
@@ -376,4 +395,13 @@ class _BreathingRegulationPageState extends State<BreathingRegulationPage> with 
       ),
     );
   }
+}
+
+/// Which second (1-based) of its phase [elapsed] falls in, given each phase's length.
+int phaseSecond(double elapsed, List<int> phases) {
+  for (final length in phases) {
+    if (elapsed < length) return elapsed.floor() + 1;
+    elapsed -= length;
+  }
+  return phases.last;
 }
