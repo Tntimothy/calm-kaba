@@ -269,13 +269,20 @@ class _HomePageState extends State<HomePage>
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    mode == DetectionMode.instant
-                        ? 'Instant Scan'
-                        : 'Continuous Scan',
-                    style: AppTypography.headlineSmall.copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w700,
+                  // Mode on one line, "Scan" under it; shrinks on narrow phones
+                  // so "Continuous" never breaks mid-word.
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      mode == DetectionMode.instant
+                          ? 'Instant\nScan'
+                          : 'Continuous\nScan',
+                      style: AppTypography.titleMedium.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                        height: 1.15,
+                      ),
                     ),
                   ),
                 ),
