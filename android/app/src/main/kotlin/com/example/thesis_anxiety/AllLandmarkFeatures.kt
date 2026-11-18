@@ -1,3 +1,7 @@
+// WHAT THIS FILE DOES
+// Extra movement summaries over 30 landmark groups (300 features),
+// the same ones used in training.
+
 package com.example.thesis_anxiety
 
 import kotlin.math.*

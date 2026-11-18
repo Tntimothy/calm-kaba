@@ -1,3 +1,8 @@
+// WHAT THIS FILE DOES
+// Scanning Log screen: every saved detection with its date and time.
+// 'Download' saves a readable .txt report to Download/Calm Kaba.
+// Tapping an entry opens that symptom's info page.
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'theme/design_system.dart';

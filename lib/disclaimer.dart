@@ -1,3 +1,7 @@
+// WHAT THIS FILE DOES
+// Disclaimer page (the '?' button): not a diagnosis, limits of the camera,
+// and the National Mental Health Crisis Hotline numbers.
+
 import 'package:flutter/material.dart';
 import 'theme/design_system.dart';
 

@@ -1,3 +1,6 @@
+// WHAT THIS FILE DOES
+// Developer-only speed stats (FPS, timings). Hidden in the USER build.
+
 import 'dart:convert';
 import 'dart:ui' show FramePhase, FrameTiming;
 import 'package:flutter/foundation.dart';

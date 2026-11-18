@@ -1,3 +1,8 @@
+// WHAT THIS FILE DOES
+// Symptoms Info screen: the 7 symptoms. Tap one to see a short summary,
+// overview, visible signs, treatments and resource links.
+// The text itself lives in services/symptom_data.dart.
+
 import 'package:flutter/material.dart';
 import 'theme/design_system.dart';
 import 'services/symptom_data.dart';

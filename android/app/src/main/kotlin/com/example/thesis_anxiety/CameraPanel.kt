@@ -1,3 +1,9 @@
+// WHAT THIS FILE DOES
+// The main engine. CameraX gives frames from the front camera; MediaPipe
+// finds 553 landmarks (478 face, 33 body, 21 per hand). Frames stay in
+// memory only and are never saved. Every 2 s the last 4 s of landmarks
+// go to the feature engine and the 7 models.
+
 package com.example.thesis_anxiety
 
 import android.Manifest

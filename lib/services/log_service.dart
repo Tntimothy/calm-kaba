@@ -1,3 +1,10 @@
+// WHAT THIS FILE DOES
+// Everything that is SAVED, all on this phone only (SharedPreferences):
+// - LogService: the detection history (symptom + time).
+// - Reflections: the kept reframing journal entries.
+// - buildReport(): the readable .txt report for the Download button.
+// No video or images are ever saved.
+
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';

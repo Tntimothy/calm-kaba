@@ -1,3 +1,6 @@
+// WHAT THIS FILE DOES
+// Reusable symptom card. Not used by any screen right now.
+
 import 'package:flutter/material.dart';
 import '../theme/design_system.dart';
 

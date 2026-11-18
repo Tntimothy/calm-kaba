@@ -1,3 +1,8 @@
+// WHAT THIS FILE DOES
+// The Android side's front door. Receives commands from Flutter
+// (start, stop, saveText, settings) and sends results back.
+// Pipeline: CameraPanel -> FeatureEngine -> ModelBank -> back to Flutter.
+
 package com.example.thesis_anxiety
 
 import io.flutter.embedding.android.FlutterActivity

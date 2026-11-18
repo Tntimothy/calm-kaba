@@ -1,3 +1,7 @@
+// WHAT THIS FILE DOES
+// App entry point. Starts Calm Kaba, sets the light/dark themes,
+// and lists every page (route) the app can open.
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'theme/design_system.dart';

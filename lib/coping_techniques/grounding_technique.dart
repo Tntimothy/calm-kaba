@@ -1,3 +1,7 @@
+// WHAT THIS FILE DOES
+// Grounding (5-4-3-2-1): name 5 things you see, 4 you feel, 3 you hear,
+// 2 you smell, 1 you taste. Answers are not saved.
+
 import 'package:flutter/material.dart';
 import '../theme/design_system.dart';
 

@@ -1,3 +1,10 @@
+// WHAT THIS FILE DOES
+// Turns raw landmark points into movement numbers (features): how much,
+// how fast and how shaky each body part moves in a 4-second window.
+// Matches the Python code the models were trained with.
+// trackingReason() gives the positioning tips ('Move back until both
+// knees are visible') and holds results back below 8 FPS.
+
 package com.example.thesis_anxiety
 
 import kotlin.math.*

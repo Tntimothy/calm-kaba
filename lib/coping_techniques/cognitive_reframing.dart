@@ -1,3 +1,9 @@
+// WHAT THIS FILE DOES
+// Cognitive Reframing journal: 4 steps from the worry to a balanced thought.
+// On Finish it asks 'Keep this reflection?'. Kept entries are saved on the
+// phone (plus a .txt copy) and listed under Past reflections at the BOTTOM,
+// so old worries don't greet an anxious user first.
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/log_service.dart';

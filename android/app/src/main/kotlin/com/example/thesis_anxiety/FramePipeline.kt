@@ -1,3 +1,7 @@
+// WHAT THIS FILE DOES
+// Passes only the NEWEST camera frame to the tracker and drops older ones,
+// so the app never falls behind or piles up frames.
+
 package com.example.thesis_anxiety
 
 /**

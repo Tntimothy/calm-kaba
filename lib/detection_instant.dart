@@ -1,3 +1,7 @@
+// WHAT THIS FILE DOES
+// 'Behavior detected' page for Instant Scan (stops at the first detection).
+// Not reachable in the USER build, which has Continuous Scan only.
+
 import 'package:flutter/material.dart';
 import 'theme/design_system.dart';
 

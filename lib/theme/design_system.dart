@@ -1,3 +1,6 @@
+// WHAT THIS FILE DOES
+// Colors, fonts and the light/dark themes used across the app.
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 

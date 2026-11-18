@@ -1,3 +1,6 @@
+// WHAT THIS FILE DOES
+// Developer-only speed measurements. Not shown to users.
+
 package com.example.thesis_anxiety
 
 import android.os.SystemClock

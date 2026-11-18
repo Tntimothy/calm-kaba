@@ -1,3 +1,7 @@
+// WHAT THIS FILE DOES
+// The bottom navigation bar: Home, Symptoms, Coping.
+// Switching tabs keeps each page alive (IndexedStack).
+
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'theme/design_system.dart';

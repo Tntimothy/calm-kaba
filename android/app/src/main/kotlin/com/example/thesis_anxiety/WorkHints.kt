@@ -1,3 +1,7 @@
+// WHAT THIS FILE DOES
+// Asks Android (Android 12+) for enough CPU to keep up with the camera.
+// A hint only; it does not change any results.
+
 package com.example.thesis_anxiety
 
 import android.content.Context

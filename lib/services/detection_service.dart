@@ -1,3 +1,9 @@
+// WHAT THIS FILE DOES
+// Bridge between the Flutter screens and the Kotlin detection engine
+// (platform channels 'calm/detection' and 'calm/detection/events').
+// - ScoreSmoother: averages the last 3 window scores so results don't flicker.
+// - DetectionEventRule: logs one entry per episode, not every 2 s.
+
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';

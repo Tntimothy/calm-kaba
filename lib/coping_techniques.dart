@@ -1,3 +1,7 @@
+// WHAT THIS FILE DOES
+// Coping Techniques menu: links to the 4 exercises.
+// Open anytime, not only after a scan.
+
 import 'package:flutter/material.dart';
 import 'theme/design_system.dart';
 

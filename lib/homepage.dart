@@ -1,3 +1,13 @@
+// WHAT THIS FILE DOES
+// Home screen and the scan itself.
+// - Scan Now / Stop button and the live camera box.
+// - Calibration bar (~13 s), then a 'Current window' bar.
+// - Status line: the user build shows only HOW MANY signs were detected,
+//   not which ones. The names are saved to the Scanning Log instead.
+// - Links to Scanning Log, Symptoms Info and the Coping Techniques.
+// The heavy work (camera, MediaPipe, LightGBM) runs in Kotlin;
+// this page only talks to it through DetectionService.
+
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'theme/design_system.dart';
@@ -84,6 +94,10 @@ class _HomePageState extends State<HomePage>
             _results = [];
             _fps = null;
             _status = 'Tracking was interrupted. Collecting a fresh window.';
+          // A new result every 2 s. During calibration nothing is shown.
+          // After it, the user build shows only the COUNT ("2 detected"),
+          // never the symptom names, so a live label can't add to the
+          // user's anxiety. The names are saved to the Scanning Log.
           case 'prediction':
             final calibrating = packet['calibrating'] == true;
             _results = calibrating ? [] : List.of(_detectionService.results);
@@ -121,6 +135,8 @@ class _HomePageState extends State<HomePage>
           );
         }
       } else {
+        // Continuous Scan: save this detection (symptom + time) to the
+        // Scanning Log on the phone. Only text is saved, never video.
         try {
           await _logService.addLog(
             result.label,

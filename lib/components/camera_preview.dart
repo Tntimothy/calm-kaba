@@ -1,3 +1,6 @@
+// WHAT THIS FILE DOES
+// Shows the native Android camera view (with landmarks) inside Flutter.
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 

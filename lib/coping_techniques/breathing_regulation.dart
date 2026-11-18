@@ -1,3 +1,7 @@
+// WHAT THIS FILE DOES
+// 4-7-8 Breathing: inhale 4 s, hold 7 s, exhale 8 s (19 s per cycle),
+// with a counter for each phase. Runs 4 cycles.
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../theme/design_system.dart';

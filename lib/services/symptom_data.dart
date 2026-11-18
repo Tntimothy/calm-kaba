@@ -1,3 +1,7 @@
+// WHAT THIS FILE DOES
+// All the written content for the 7 symptoms (summary, overview, signs,
+// treatments, links). Used by Symptoms Info and the downloaded report.
+
 class SymptomData {
   static final Map<String, Map<String, dynamic>> data = {
     'Hand Tremor': {

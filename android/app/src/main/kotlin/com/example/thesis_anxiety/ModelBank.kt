@@ -1,3 +1,9 @@
+// WHAT THIS FILE DOES
+// The 7 LightGBM yes/no models (one per symptom), loaded from assets/behavior_v7.
+// Calibration: the first ~13 s (5 windows of 4 s) become YOUR baseline,
+// and later windows are compared against it, like a doctor checking your
+// resting heart rate first. Each scan calibrates fresh.
+
 package com.example.thesis_anxiety
 
 import org.json.JSONObject

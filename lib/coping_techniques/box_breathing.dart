@@ -1,3 +1,7 @@
+// WHAT THIS FILE DOES
+// Box Breathing: inhale 4, hold 4, exhale 4, hold 4 (16 s per cycle).
+// A fish swims one side of a square per phase. Choose 4 cycles or 5 minutes.
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../theme/design_system.dart';
